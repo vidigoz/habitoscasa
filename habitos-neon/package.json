@@ -1,0 +1,9 @@
+{
+  "name": "mis-habitos",
+  "version": "1.0.0",
+  "description": "App de hábitos familiares",
+  "private": true,
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.0"
+  }
+}
