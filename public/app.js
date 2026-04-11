@@ -666,6 +666,14 @@ async function init() {
   document.getElementById("btn-week-cancel").addEventListener("click", () => document.getElementById("modal-week").classList.add("hidden"));
   document.getElementById("inp-week-title").addEventListener("keypress", e => { if (e.key === "Enter") startNewWeek(); });
 
+  document.getElementById("btn-banner-add-child").addEventListener("click", () => {
+    showView("config");
+    setTimeout(() => {
+      const inp = document.getElementById("inp-new-child");
+      if (inp) inp.focus();
+    }, 150);
+  });
+
   // Habit form
   document.getElementById("btn-add-habit").addEventListener("click", addHabit);
   document.getElementById("inp-habit-name").addEventListener("keypress", e => { if (e.key === "Enter") addHabit(); });

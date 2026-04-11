@@ -104,7 +104,7 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .view.active { display:block; }
 
 /* ─── BANNERS ────────────────────────────────────────── */
-.banner { border-radius:var(--r-sm); padding:11px 14px; font-weight:600; font-size:13px; margin-bottom:12px; }
+.banner { border-radius:var(--r-sm); padding:11px 14px; font-weight:600; font-size:13px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .banner-info { background:var(--p-lt); color:var(--p); border:1.5px solid #c8bff8; }
 .banner-lock { background:var(--warn-bg); color:var(--warn-t); border:1.5px solid var(--warn-bdr); }
 
