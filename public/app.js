@@ -405,9 +405,12 @@ function closeSidebar() {
 }
 
 // ── ACTIONS ───────────────────────────────────────────────
-async function addChild() {
-  const inp = document.getElementById("inp-new-child");
-  const name = inp.value.trim();
+async function addChild(inputId = "inp-new-child") {
+  const configInput = document.getElementById("inp-new-child");
+  const bannerInput = document.getElementById("inp-banner-child");
+  const sourceInput = inputId ? document.getElementById(inputId) : null;
+  const rawName = sourceInput?.value ?? configInput?.value ?? "";
+  const name = rawName.trim();
   if (!name) return toast("Escribe un nombre");
   if (S.children.find(c => c.name.toLowerCase() === name.toLowerCase())) return toast("Ya existe ese perfil");
   const child = { id: uid(), name, total_points: 0 };
@@ -415,7 +418,8 @@ async function addChild() {
   if (!r.ok) toast("⚠️ Guardado local (sin BD)");
   S.children.push(child);
   if (!S.currentChild) S.currentChild = child.id;
-  inp.value = "";
+  if (configInput) configInput.value = "";
+  if (bannerInput) bannerInput.value = "";
   saveLocal();
   renderAll();
   toast(`✅ ${name} agregado`);
@@ -666,14 +670,6 @@ async function init() {
   document.getElementById("btn-week-cancel").addEventListener("click", () => document.getElementById("modal-week").classList.add("hidden"));
   document.getElementById("inp-week-title").addEventListener("keypress", e => { if (e.key === "Enter") startNewWeek(); });
 
-  document.getElementById("btn-banner-add-child").addEventListener("click", () => {
-    showView("config");
-    setTimeout(() => {
-      const inp = document.getElementById("inp-new-child");
-      if (inp) inp.focus();
-    }, 150);
-  });
-
   // Habit form
   document.getElementById("btn-add-habit").addEventListener("click", addHabit);
   document.getElementById("inp-habit-name").addEventListener("keypress", e => { if (e.key === "Enter") addHabit(); });
@@ -702,6 +698,13 @@ async function init() {
   document.getElementById("btn-clear-all").addEventListener("click", () => document.getElementById("clear-confirm").classList.remove("hidden"));
   document.getElementById("btn-clear-yes").addEventListener("click", clearAll);
   document.getElementById("btn-clear-no").addEventListener("click", () => document.getElementById("clear-confirm").classList.add("hidden"));
+
+  const bannerCreateBtn = document.getElementById("btn-banner-create");
+  const bannerInput = document.getElementById("inp-banner-child");
+  if (bannerCreateBtn) {
+    bannerCreateBtn.addEventListener("click", () => addChild("inp-banner-child"));
+    if (bannerInput) bannerInput.addEventListener("keypress", e => { if (e.key === "Enter") addChild("inp-banner-child"); });
+  }
 
   // Initial render (local data while DB loads)
   renderAll();
