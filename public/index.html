@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#5B4FCF">
+  <meta name="theme-color" content="#6C63FF">
   <title>MisHábitos ⭐</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -28,13 +28,20 @@
   <!-- HEADER -->
   <header class="header">
     <div class="hd-left">
-      <button id="btn-menu" class="icon-btn">☰</button>
+      <button id="btn-menu" class="icon-btn" aria-label="Menú">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect y="4" width="22" height="2.5" rx="1.25" fill="currentColor"/><rect y="10" width="22" height="2.5" rx="1.25" fill="currentColor"/><rect y="16" width="22" height="2.5" rx="1.25" fill="currentColor"/></svg>
+      </button>
       <span class="app-wordmark">MisHábitos</span>
     </div>
     <div class="hd-right">
-      <div class="pts-pill" id="pts-pill">⭐ <span id="hdr-pts">0</span></div>
-      <button id="btn-child-switch" class="child-chip">
-        <span id="chip-name">—</span> <span class="chip-arrow">▾</span>
+      <div class="pts-pill" id="pts-pill">
+        <span class="pts-star">⭐</span>
+        <span id="hdr-pts">0</span>
+        <span class="pts-label">pts</span>
+      </div>
+      <button id="btn-child-switch" class="child-chip" aria-label="Cambiar perfil">
+        <span id="chip-avatar">😊</span>
+        <span id="chip-name">—</span>
       </button>
     </div>
   </header>
@@ -49,16 +56,26 @@
       <button id="btn-sb-close" class="icon-btn">✕</button>
     </div>
     <nav class="sb-nav">
-      <button class="nav-btn active" data-view="home">🏠 Inicio</button>
-      <button class="nav-btn" data-view="dashboard">📊 Dashboard</button>
-      <button class="nav-btn" data-view="premios">🎁 Premios</button>
-      <button class="nav-btn" data-view="historial">📅 Historial</button>
-      <button class="nav-btn" data-view="config">⚙️ Configurar</button>
+      <button class="nav-btn active" data-view="home">
+        <span class="nav-icon">🏠</span> Inicio
+      </button>
+      <button class="nav-btn" data-view="dashboard">
+        <span class="nav-icon">📊</span> Dashboard
+      </button>
+      <button class="nav-btn" data-view="premios">
+        <span class="nav-icon">🎁</span> Premios
+      </button>
+      <button class="nav-btn" data-view="historial">
+        <span class="nav-icon">📅</span> Historial
+      </button>
+      <button class="nav-btn" data-view="config">
+        <span class="nav-icon">⚙️</span> Configurar
+      </button>
     </nav>
     <div class="sb-week-box">
       <p class="sb-wk-label">Semana actual</p>
       <p id="sb-wk-val" class="sb-wk-val">—</p>
-      <button id="btn-new-week" class="btn-ghost btn-sm">✨ Nueva semana</button>
+      <button id="btn-new-week" class="btn-week">✨ Nueva semana</button>
     </div>
     <div id="sb-sync-status" class="sb-sync hidden"></div>
   </aside>
@@ -68,65 +85,65 @@
 
     <!-- ── HOME ─────────────────────────────────── -->
     <section id="view-home" class="view active">
-      <div id="banner-no-child" class="banner banner-info">
-        <div class="banner-content">
-          <span>👋 Selecciona o crea un perfil para empezar</span>
-        </div>
-        <div class="banner-cta">
-          <input id="inp-banner-child" class="field mb0" type="text" placeholder="Nombre del perfil">
-          <button id="btn-banner-create" class="btn-primary btn-sm" type="button">Crear</button>
-        </div>
-      </div>
-      <div id="week-bar" class="week-bar hidden">
-        <span class="wk-chip">📅 <span id="wk-label">—</span></span>
-        <span class="pts-chip">⭐ <span id="home-pts">0</span> pts</span>
+
+      <!-- Profiles row -->
+      <div class="section-label">👦 Perfiles</div>
+      <div id="profile-row" class="profile-row"></div>
+
+      <!-- Empty state (no profiles) -->
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-emoji">🌟</div>
+        <p class="empty-title">¡Bienvenido a MisHábitos!</p>
+        <p class="empty-sub">Crea el primer perfil para empezar a registrar hábitos</p>
+        <button class="btn-primary btn-create-first" id="btn-create-first">+ Crear primer perfil</button>
       </div>
 
+      <!-- Week bar -->
+      <div id="week-bar" class="week-bar hidden">
+        <div class="wk-left">
+          <span class="wk-icon">📅</span>
+          <span id="wk-label" class="wk-text">—</span>
+        </div>
+        <div class="pts-chip">
+          <span>⭐</span>
+          <span id="home-pts">0</span>
+          <span>pts esta semana</span>
+        </div>
+      </div>
+
+      <!-- Category cards -->
       <div class="cat-grid" id="cat-grid">
-        <!-- Básicos -->
-        <div class="cat-card" data-cat="basicos" id="card-basicos">
-          <div class="cat-left">
-            <div class="cat-icon-wrap ci-basicos">🔒</div>
-            <div>
-              <div class="cat-title" id="lbl-basicos">Básicos</div>
-              <div class="cat-sub">Hábitos obligatorios</div>
-            </div>
+        <div class="cat-card cat-basicos" data-cat="basicos" id="card-basicos">
+          <div class="cat-icon-bg">🔒</div>
+          <div class="cat-info">
+            <div class="cat-title" id="lbl-basicos">Básicos</div>
+            <div class="cat-sub">Hábitos obligatorios</div>
+            <div class="cat-prog-track"><div class="cat-prog-fill" id="prog-basicos" style="width:0%"></div></div>
           </div>
-          <div class="cat-right">
-            <div class="cat-count ci-basicos-count" id="cnt-basicos">0</div>
-            <div class="cat-chevron">›</div>
-          </div>
-          <div class="cat-prog-track"><div class="cat-prog-fill cpf-basicos" id="prog-basicos" style="width:0%"></div></div>
+          <div class="cat-badge" id="cnt-basicos">0</div>
+          <div class="cat-arrow">›</div>
         </div>
-        <!-- Extras -->
-        <div class="cat-card" data-cat="extras" id="card-extras">
-          <div class="cat-left">
-            <div class="cat-icon-wrap ci-extras">🔄</div>
-            <div>
-              <div class="cat-title" id="lbl-extras">Extras</div>
-              <div class="cat-sub">Suma puntos extra</div>
-            </div>
+
+        <div class="cat-card cat-extras" data-cat="extras" id="card-extras">
+          <div class="cat-icon-bg">🔄</div>
+          <div class="cat-info">
+            <div class="cat-title" id="lbl-extras">Extras</div>
+            <div class="cat-sub">Suma puntos extra</div>
+            <div class="cat-prog-track"><div class="cat-prog-fill" id="prog-extras" style="width:0%"></div></div>
           </div>
-          <div class="cat-right">
-            <div class="cat-count ci-extras-count" id="cnt-extras">0</div>
-            <div class="cat-chevron">›</div>
-          </div>
-          <div class="cat-prog-track"><div class="cat-prog-fill cpf-extras" id="prog-extras" style="width:0%"></div></div>
+          <div class="cat-badge" id="cnt-extras">0</div>
+          <div class="cat-arrow">›</div>
         </div>
-        <!-- Especiales -->
-        <div class="cat-card" data-cat="especiales" id="card-especiales">
-          <div class="cat-left">
-            <div class="cat-icon-wrap ci-especiales">🏆</div>
-            <div>
-              <div class="cat-title" id="lbl-especiales">Especiales</div>
-              <div class="cat-sub">Grandes logros</div>
-            </div>
+
+        <div class="cat-card cat-especiales" data-cat="especiales" id="card-especiales">
+          <div class="cat-icon-bg">🏆</div>
+          <div class="cat-info">
+            <div class="cat-title" id="lbl-especiales">Especiales</div>
+            <div class="cat-sub">Grandes logros</div>
+            <div class="cat-prog-track"><div class="cat-prog-fill" id="prog-especiales" style="width:0%"></div></div>
           </div>
-          <div class="cat-right">
-            <div class="cat-count ci-especiales-count" id="cnt-especiales">0</div>
-            <div class="cat-chevron">›</div>
-          </div>
-          <div class="cat-prog-track"><div class="cat-prog-fill cpf-especiales" id="prog-especiales" style="width:0%"></div></div>
+          <div class="cat-badge" id="cnt-especiales">0</div>
+          <div class="cat-arrow">›</div>
         </div>
       </div>
 
@@ -135,10 +152,13 @@
       </div>
     </section>
 
-    <!-- ── CATEGORY ──────────────────────────────── -->
+    <!-- ── CATEGORY VIEW ──────────────────────────────── -->
     <section id="view-category" class="view hidden">
       <div class="view-topbar">
-        <button class="back-btn" id="btn-back-cat">← Volver</button>
+        <button class="back-btn" id="btn-back-cat">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 14L6 9L11 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Volver
+        </button>
         <div class="view-heading">
           <span id="catv-icon" class="catv-icon">🔒</span>
           <h2 id="catv-title" class="view-h2">Básicos</h2>
@@ -158,7 +178,7 @@
             <input type="hidden" id="hval-type" value="diario">
           </div>
           <div class="field-group" id="pts-field-group">
-            <label class="field-label">Puntos (0–5)</label>
+            <label class="field-label">Puntos</label>
             <div class="pts-row" id="pts-row">
               <button class="pts-b" data-p="0">0</button>
               <button class="pts-b active" data-p="2">2</button>
@@ -168,7 +188,7 @@
             <input type="hidden" id="hval-pts" value="2">
           </div>
         </div>
-        <button id="btn-add-habit" class="btn-primary">Agregar</button>
+        <button id="btn-add-habit" class="btn-primary">Agregar hábito</button>
       </div>
 
       <div id="habits-list" class="habits-list"></div>
@@ -223,12 +243,10 @@
 
       <!-- Perfiles -->
       <div class="card">
-        <h3 class="card-title">👦 Perfiles</h3>
+        <h3 class="card-title">👦 Perfiles de niños</h3>
+        <p class="card-desc" style="margin-bottom:12px;">Agrega o elimina perfiles. También puedes crearlos desde la pantalla de Inicio.</p>
         <div id="children-cfg" class="children-cfg"></div>
-        <div class="inp-row">
-          <input id="inp-new-child" class="field mb0" type="text" placeholder="Nombre del hijo...">
-          <button id="btn-add-child" class="btn-primary btn-sm">+ Agregar</button>
-        </div>
+        <button class="btn-primary btn-sm" id="btn-cfg-add-child" style="margin-top:4px;">+ Agregar perfil</button>
       </div>
 
       <!-- Categorías -->
@@ -242,14 +260,14 @@
         <button id="btn-save-labels" class="btn-primary btn-sm">Guardar nombres</button>
       </div>
 
-      <!-- Estado de conexión -->
+      <!-- DB -->
       <div class="card card-db">
         <h3 class="card-title">🗄️ Base de datos</h3>
         <div id="db-status-box" class="db-status-box">
           <span id="db-status-dot" class="db-dot db-dot-checking">●</span>
           <span id="db-status-text">Verificando conexión...</span>
         </div>
-        <p class="card-desc">La app usa tu base de datos Neon conectada en Netlify. No necesitas configurar nada extra.</p>
+        <p class="card-desc">La app usa tu base de datos Neon conectada en Netlify.</p>
       </div>
 
       <!-- Danger -->
@@ -266,22 +284,53 @@
       </div>
     </section>
 
-  </main><!-- /main -->
+  </main>
 
   <!-- BOTTOM NAV -->
   <nav class="bnav">
-    <button class="bnav-btn active" data-view="home">🏠<span>Inicio</span></button>
-    <button class="bnav-btn" data-view="dashboard">📊<span>Stats</span></button>
-    <button class="bnav-btn" data-view="premios">🎁<span>Premios</span></button>
-    <button class="bnav-btn" data-view="historial">📅<span>Historial</span></button>
-    <button class="bnav-btn" data-view="config">⚙️<span>Config</span></button>
+    <button class="bnav-btn active" data-view="home">
+      <span class="bnav-icon">🏠</span>
+      <span>Inicio</span>
+    </button>
+    <button class="bnav-btn" data-view="dashboard">
+      <span class="bnav-icon">📊</span>
+      <span>Stats</span>
+    </button>
+    <button class="bnav-btn" data-view="premios">
+      <span class="bnav-icon">🎁</span>
+      <span>Premios</span>
+    </button>
+    <button class="bnav-btn" data-view="historial">
+      <span class="bnav-icon">📅</span>
+      <span>Historial</span>
+    </button>
+    <button class="bnav-btn" data-view="config">
+      <span class="bnav-icon">⚙️</span>
+      <span>Config</span>
+    </button>
   </nav>
 
 </div><!-- /app -->
 
+<!-- MODAL: add profile -->
+<div id="modal-add-profile" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <p class="modal-title">✨ Nuevo perfil</p>
+    <p class="modal-sub">Elige un avatar y escribe el nombre</p>
+    <div class="emoji-grid" id="emoji-grid"></div>
+    <input id="inp-profile-name" class="field" type="text" placeholder="Nombre del niño/a..." maxlength="20" autocomplete="off">
+    <div class="modal-actions">
+      <button id="btn-profile-save" class="btn-primary">Crear perfil 🎉</button>
+      <button id="btn-profile-cancel" class="btn-ghost w-full">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: cambiar hijo -->
 <div id="modal-child" class="modal-bg hidden">
   <div class="modal">
+    <div class="modal-handle"></div>
     <p class="modal-title">👦 Cambiar perfil</p>
     <div id="modal-child-list" class="modal-list"></div>
     <button id="btn-modal-child-close" class="btn-ghost w-full">Cancelar</button>
@@ -291,8 +340,9 @@
 <!-- MODAL: nueva semana -->
 <div id="modal-week" class="modal-bg hidden">
   <div class="modal">
+    <div class="modal-handle"></div>
     <p class="modal-title">✨ Nueva semana</p>
-    <p class="modal-desc">Se guardará el historial de esta semana y se reiniciarán los hábitos.</p>
+    <p class="modal-sub">Se guardará el historial y se reiniciarán los hábitos.</p>
     <input id="inp-week-title" class="field" type="text" placeholder="Ej: 14 al 20 de abril">
     <div class="modal-actions">
       <button id="btn-week-confirm" class="btn-primary">Confirmar</button>

@@ -6,12 +6,19 @@
 
 const API = "/api/api";
 
+// ── AVATAR / COLOR POOLS ──────────────────────────────
+const AVATARS = ["🦁","🐯","🦊","🐸","🐧","🦋","🦄","🐼","🦖","🚀","🌟","🎮","🎨","🎵","🏆","⚽","🎯","🌈"];
+const PROFILE_COLORS = ["#FF6B9D","#6C63FF","#11998E","#F7971E","#E040FB","#2196F3","#E53935","#00BCD4","#FF5722","#4CAF50"];
+
+function getChildColor(idx) { return PROFILE_COLORS[idx % PROFILE_COLORS.length]; }
+function getChildAvatar(child, idx) { return child.avatar || AVATARS[idx % AVATARS.length]; }
+
 // ── UTILS ────────────────────────────────────────────────
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
 
 function getWeekStart(d = new Date()) {
   const date = new Date(d);
-  const day = date.getDay(); // 0=Sun
+  const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + diff);
   return date.toISOString().split("T")[0];
@@ -35,7 +42,7 @@ function toast(msg) {
 
 // ── STATE ────────────────────────────────────────────────
 const S = {
-  children: [],       // {id, name, total_points}
+  children: [],       // {id, name, avatar, total_points}
   habits: [],         // {id, child_id, category, name, type, points, week_start}
   completions: [],    // {id, habit_id, child_id, day, week_start}
   premios: [],        // {id, child_id, name, points_required, redeemed}
@@ -50,6 +57,8 @@ const S = {
   currentView: "home",
   currentWeek: getWeekStart(),
   currentWeekLabel: getWeekLabel(),
+  // Temp state for add-profile modal
+  _newAvatar: AVATARS[0],
 };
 
 // ── API CALLS ─────────────────────────────────────────────
@@ -96,7 +105,6 @@ async function loadFromDB() {
   S.completions = d.completions || [];
   S.premios = d.premios || [];
   S.history = d.history || [];
-  // Map settings rows
   if (d.settings) {
     const raw = d.settings;
     ["label_basicos", "label_extras", "label_especiales"].forEach(k => {
@@ -166,6 +174,7 @@ function getValidPts(child_id) {
 // ── RENDER ALL ────────────────────────────────────────────
 function renderAll() {
   renderHeader();
+  renderProfileRow();
   renderHomeBars();
   renderCatCards();
   renderBottomNav();
@@ -178,21 +187,66 @@ function renderAll() {
 
 function renderHeader() {
   const child = S.children.find(c => c.id === S.currentChild);
+  const idx = S.children.findIndex(c => c.id === S.currentChild);
   document.getElementById("hdr-pts").textContent = child ? getValidPts(child.id) : 0;
-  document.getElementById("chip-name").textContent = child ? child.name : "—";
-  document.getElementById("sb-wk-val").textContent = S.currentWeekLabel;
+  document.getElementById("chip-name").textContent = child ? child.name : "Perfil";
+  document.getElementById("chip-avatar").textContent = child ? getChildAvatar(child, idx) : "😊";
+}
+
+function renderProfileRow() {
+  const row = document.getElementById("profile-row");
+  const emptyState = document.getElementById("empty-state");
+  if (!row) return;
+
+  if (!S.children.length) {
+    row.innerHTML = "";
+    emptyState && emptyState.classList.remove("hidden");
+    return;
+  }
+  emptyState && emptyState.classList.add("hidden");
+
+  row.innerHTML = S.children.map((c, i) => {
+    const color = getChildColor(i);
+    const avatar = getChildAvatar(c, i);
+    const pts = getValidPts(c.id);
+    const isActive = c.id === S.currentChild;
+    return `<button class="profile-chip${isActive ? " active" : ""}" data-cid="${c.id}" style="--chip-color:${color}">
+      <span class="profile-avatar">${avatar}</span>
+      <span class="profile-name">${c.name}</span>
+      <span class="profile-pts">⭐ ${pts}</span>
+    </button>`;
+  }).join("") +
+  `<button class="profile-chip add-chip" id="btn-add-profile-row">
+    <span class="add-icon">+</span>
+    <span>Nuevo</span>
+  </button>`;
+
+  row.querySelectorAll("[data-cid]").forEach(b => {
+    b.addEventListener("click", () => {
+      S.currentChild = b.dataset.cid;
+      saveLocal();
+      renderAll();
+    });
+  });
+  document.getElementById("btn-add-profile-row")?.addEventListener("click", openAddProfileModal);
 }
 
 function renderHomeBars() {
   const child = S.children.find(c => c.id === S.currentChild);
-  const noChild = document.getElementById("banner-no-child");
   const weekBar = document.getElementById("week-bar");
   const lockBanner = document.getElementById("lock-banner");
+  const catGrid = document.getElementById("cat-grid");
+
   if (!child) {
-    noChild.classList.remove("hidden"); weekBar.classList.add("hidden"); lockBanner.classList.add("hidden");
+    weekBar.classList.add("hidden");
+    lockBanner.classList.add("hidden");
+    catGrid.style.opacity = "0.4";
+    catGrid.style.pointerEvents = "none";
     return;
   }
-  noChild.classList.add("hidden"); weekBar.classList.remove("hidden");
+  catGrid.style.opacity = "";
+  catGrid.style.pointerEvents = "";
+  weekBar.classList.remove("hidden");
   document.getElementById("wk-label").textContent = S.currentWeekLabel;
   document.getElementById("home-pts").textContent = getValidPts(child.id);
   const hasNonBasicos = S.habits.some(h => h.child_id === child.id && h.category !== "basicos" && h.week_start === S.currentWeek);
@@ -206,7 +260,7 @@ function renderCatCards() {
       ? S.habits.filter(h => h.child_id === S.currentChild && h.category === cat && h.week_start === S.currentWeek)
       : [];
     const done = habits.filter(isHabitComplete).length;
-    document.getElementById(`cnt-${cat}`).textContent = habits.length;
+    document.getElementById(`cnt-${cat}`).textContent = habits.length ? `${done}/${habits.length}` : "0";
     document.getElementById(`lbl-${cat}`).textContent = getCatLabel(cat);
     const pct = habits.length ? (done / habits.length) * 100 : 0;
     document.getElementById(`prog-${cat}`).style.width = pct + "%";
@@ -217,7 +271,6 @@ function renderCatView() {
   const cat = S.currentCat;
   document.getElementById("catv-icon").textContent = getCatIcon(cat);
   document.getElementById("catv-title").textContent = getCatLabel(cat);
-  // Hide pts selector for basicos (they don't earn points)
   document.getElementById("pts-field-group").classList.toggle("hidden", cat === "basicos");
 
   const habits = S.currentChild
@@ -226,7 +279,11 @@ function renderCatView() {
 
   const list = document.getElementById("habits-list");
   if (!habits.length) {
-    list.innerHTML = '<p style="text-align:center;color:var(--t3);padding:22px;font-weight:600;">Sin hábitos — agrega el primero</p>';
+    list.innerHTML = `<div style="text-align:center;padding:32px 16px;">
+      <div style="font-size:48px;margin-bottom:12px;">📝</div>
+      <p style="color:var(--t3);font-weight:700;font-size:15px;">Sin hábitos todavía</p>
+      <p style="color:var(--t3);font-size:13px;margin-top:6px;">Agrega el primer hábito arriba</p>
+    </div>`;
     return;
   }
   list.innerHTML = habits.map(h => buildHabitCard(h)).join("");
@@ -237,26 +294,32 @@ function buildHabitCard(h) {
   const ptsLabel = h.category !== "basicos" ? ` · ${h.points} pts` : "";
   const typeLabel = h.type === "semanal" ? "☀️ Semanal" : "📅 Diario";
   const done = countDone(h);
+  const complete = isHabitComplete(h);
 
   if (h.type === "semanal") {
-    const c = done >= 1;
-    return `<div class="habit-card">
+    return `<div class="habit-card${complete ? " habit-done" : ""}">
       <div class="hc-header">
-        <div><div class="hc-name">${h.name}</div><div class="hc-meta">${typeLabel}${ptsLabel}</div></div>
-        <button class="hc-del" data-del="${h.id}">🗑️</button>
+        <div>
+          <div class="hc-name">${h.name}</div>
+          <div class="hc-meta">${typeLabel}${ptsLabel}</div>
+        </div>
+        <button class="hc-del" data-del="${h.id}" title="Eliminar">🗑️</button>
       </div>
-      <button class="weekly-btn ${c ? "done" : ""}" data-weekly="${h.id}">
-        ${c ? "✅ Completado esta semana" : "❌ Marcar como completado"}
+      <button class="weekly-btn ${complete ? "done" : ""}" data-weekly="${h.id}">
+        ${complete ? "✅ ¡Completado esta semana!" : "❌ Marcar como completado"}
       </button>
     </div>`;
   }
 
-  const pct = Math.min(100, (done / 7) * 100);
   const needed = 4;
-  return `<div class="habit-card">
+  const pct = Math.min(100, (done / 7) * 100);
+  return `<div class="habit-card${complete ? " habit-done" : ""}">
     <div class="hc-header">
-      <div><div class="hc-name">${h.name}</div><div class="hc-meta">${typeLabel}${ptsLabel}</div></div>
-      <button class="hc-del" data-del="${h.id}">🗑️</button>
+      <div>
+        <div class="hc-name">${h.name}</div>
+        <div class="hc-meta">${typeLabel}${ptsLabel}</div>
+      </div>
+      <button class="hc-del" data-del="${h.id}" title="Eliminar">🗑️</button>
     </div>
     <div class="days-row">
       ${DAYS.map(d => {
@@ -266,7 +329,7 @@ function buildHabitCard(h) {
     </div>
     <div class="hc-prog">
       <div class="hc-prog-track"><div class="hc-prog-fill" style="width:${pct}%"></div></div>
-      <div class="hc-prog-lbl">${done}/7 días · ${done >= needed ? "✅ Completo" : `faltan ${needed - done} para contar`}</div>
+      <div class="hc-prog-lbl">${done}/7 días · ${done >= needed ? "✅ ¡Completo!" : `faltan ${needed - done} para contar`}</div>
     </div>
   </div>`;
 }
@@ -289,7 +352,11 @@ function renderPremios() {
   const premios = child ? S.premios.filter(p => p.child_id === child.id) : [];
   const list = document.getElementById("premios-list");
   if (!premios.length) {
-    list.innerHTML = '<p style="text-align:center;color:var(--t3);padding:16px;font-weight:600;">Sin premios creados</p>';
+    list.innerHTML = `<div style="text-align:center;padding:28px 16px;">
+      <div style="font-size:44px;margin-bottom:10px;">🎁</div>
+      <p style="color:var(--t3);font-weight:700;">Sin premios todavía</p>
+      <p style="color:var(--t3);font-size:13px;margin-top:6px;">Crea un premio arriba</p>
+    </div>`;
     return;
   }
   list.innerHTML = premios.map(p => {
@@ -301,7 +368,7 @@ function renderPremios() {
         <div class="prem-pts-lbl">${p.redeemed ? "Canjeado" : `${p.points_required} pts requeridos`}</div>
         ${!p.redeemed ? `<div class="prem-prog"><div class="prem-prog-track"><div class="prem-prog-fill" style="width:${pct}%"></div></div></div>` : ""}
       </div>
-      ${!p.redeemed ? `<button class="btn-canjear" data-canjear="${p.id}" ${can ? "" : "disabled"}>Canjear</button>` : ""}
+      ${!p.redeemed ? `<button class="btn-canjear" data-canjear="${p.id}" ${can ? "" : "disabled"}>${can ? "🎉 Canjear" : "🔒"}</button>` : ""}
       <button class="btn-del-prem" data-delprem="${p.id}" title="Eliminar">🗑️</button>
     </div>`;
   }).join("");
@@ -312,20 +379,29 @@ function renderPremios() {
 function renderDashboard() {
   document.getElementById("dash-wk-lbl").textContent = S.currentWeekLabel;
   const cont = document.getElementById("dash-content");
-  if (!S.children.length) { cont.innerHTML = '<p style="text-align:center;color:var(--t3);padding:22px;font-weight:600;">Sin perfiles</p>'; return; }
-  cont.innerHTML = S.children.map(c => {
+  if (!S.children.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:32px;color:var(--t3);font-weight:700;">
+      Sin perfiles — crea uno en Inicio
+    </div>`;
+    return;
+  }
+  cont.innerHTML = S.children.map((c, i) => {
+    const avatar = getChildAvatar(c, i);
+    const color = getChildColor(i);
     const all = S.habits.filter(h => h.child_id === c.id && h.week_start === S.currentWeek);
     const done = all.filter(isHabitComplete).length;
     const pct = all.length ? Math.round((done / all.length) * 100) : 0;
     const valid = getValidPts(c.id);
-    const total = getTotalPts(c.id);
     const locked = !basicosComplete(c.id);
-    return `<div class="dash-card">
-      <div class="dash-name">${c.name}</div>
+    return `<div class="dash-card" style="border-top:4px solid ${color}">
+      <div class="dash-header">
+        <span class="dash-avatar">${avatar}</span>
+        <span class="dash-name">${c.name}</span>
+      </div>
       <div class="dash-stats">
         <div class="ds ds-blue"><div class="ds-num">${all.length}</div><div class="ds-lbl">Hábitos</div></div>
         <div class="ds ds-green"><div class="ds-num">${done}</div><div class="ds-lbl">Completos</div></div>
-        <div class="ds ds-gold"><div class="ds-num">${valid}</div><div class="ds-lbl">Pts válidos</div></div>
+        <div class="ds ds-gold"><div class="ds-num">${valid}</div><div class="ds-lbl">⭐ Pts</div></div>
         <div class="ds ds-pink"><div class="ds-num">${pct}%</div><div class="ds-lbl">Progreso</div></div>
       </div>
       ${locked ? `<div class="dash-lock">🔒 Básicos incompletos — puntos bloqueados</div>` : ""}
@@ -335,7 +411,12 @@ function renderDashboard() {
 
 function renderHistorial() {
   const cont = document.getElementById("hist-content");
-  if (!S.history.length) { cont.innerHTML = '<p style="text-align:center;color:var(--t3);padding:22px;font-weight:600;">Sin historial todavía</p>'; return; }
+  if (!S.history.length) {
+    cont.innerHTML = `<div style="text-align:center;padding:32px;color:var(--t3);font-weight:700;">
+      Sin historial todavía
+    </div>`;
+    return;
+  }
   const byWeek = {};
   S.history.forEach(h => {
     if (!byWeek[h.week_start]) byWeek[h.week_start] = { label: h.week_label, rows: [] };
@@ -348,8 +429,13 @@ function renderHistorial() {
       <div class="hist-title">📅 ${label || w}</div>
       ${rows.map(r => {
         const child = S.children.find(c => c.id === r.child_id);
+        const idx = S.children.findIndex(c => c.id === r.child_id);
+        const avatar = child ? getChildAvatar(child, idx) : "👤";
         return `<div class="hist-row">
-          <span class="hist-cname">${child ? child.name : r.child_id}</span>
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span>${avatar}</span>
+            <span class="hist-cname">${child ? child.name : r.child_id}</span>
+          </span>
           <span class="hist-badge">⭐ ${r.points} pts</span>
         </div>`;
       }).join("")}
@@ -359,9 +445,13 @@ function renderHistorial() {
 
 function renderChildrenCfg() {
   const cont = document.getElementById("children-cfg");
-  if (!S.children.length) { cont.innerHTML = '<p style="color:var(--t3);font-size:13px;padding:8px 0;">Sin perfiles</p>'; return; }
-  cont.innerHTML = S.children.map(c =>
+  if (!S.children.length) {
+    cont.innerHTML = `<p style="color:var(--t3);font-size:13px;padding:8px 0;font-weight:600;">Sin perfiles — agrega el primero</p>`;
+    return;
+  }
+  cont.innerHTML = S.children.map((c, i) =>
     `<div class="child-row">
+      <span class="child-row-avatar">${getChildAvatar(c, i)}</span>
       <span class="child-row-name">${c.name}</span>
       <button class="btn-del-child" data-delchild="${c.id}">🗑️ Eliminar</button>
     </div>`
@@ -404,25 +494,43 @@ function closeSidebar() {
   document.getElementById("sb-overlay").classList.add("hidden");
 }
 
+// ── ADD PROFILE MODAL ─────────────────────────────────────
+function openAddProfileModal() {
+  S._newAvatar = AVATARS[0];
+  const grid = document.getElementById("emoji-grid");
+  grid.innerHTML = AVATARS.map(e =>
+    `<button class="emoji-btn${e === S._newAvatar ? " sel" : ""}" data-emoji="${e}">${e}</button>`
+  ).join("");
+  grid.querySelectorAll(".emoji-btn").forEach(b => {
+    b.addEventListener("click", () => {
+      grid.querySelectorAll(".emoji-btn").forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+      S._newAvatar = b.dataset.emoji;
+    });
+  });
+  document.getElementById("inp-profile-name").value = "";
+  document.getElementById("modal-add-profile").classList.remove("hidden");
+  setTimeout(() => document.getElementById("inp-profile-name").focus(), 150);
+}
+
+function closeAddProfileModal() {
+  document.getElementById("modal-add-profile").classList.add("hidden");
+}
+
 // ── ACTIONS ───────────────────────────────────────────────
-async function addChild(inputId = "inp-new-child") {
-  const configInput = document.getElementById("inp-new-child");
-  const bannerInput = document.getElementById("inp-banner-child");
-  const sourceInput = inputId ? document.getElementById(inputId) : null;
-  const rawName = sourceInput?.value ?? configInput?.value ?? "";
-  const name = rawName.trim();
+async function addChild() {
+  const name = document.getElementById("inp-profile-name").value.trim();
   if (!name) return toast("Escribe un nombre");
   if (S.children.find(c => c.name.toLowerCase() === name.toLowerCase())) return toast("Ya existe ese perfil");
-  const child = { id: uid(), name, total_points: 0 };
+  const child = { id: uid(), name, avatar: S._newAvatar || AVATARS[0], total_points: 0 };
   const r = await call("add_child", child);
   if (!r.ok) toast("⚠️ Guardado local (sin BD)");
   S.children.push(child);
   if (!S.currentChild) S.currentChild = child.id;
-  if (configInput) configInput.value = "";
-  if (bannerInput) bannerInput.value = "";
+  closeAddProfileModal();
   saveLocal();
   renderAll();
-  toast(`✅ ${name} agregado`);
+  toast(`✅ ¡${name} agregado!`);
 }
 
 async function deleteChild(id) {
@@ -458,7 +566,6 @@ async function addHabit() {
 async function deleteHabit(id) {
   const h = S.habits.find(x => x.id === id);
   if (!h) return;
-  // Reverse points for non-basicos
   if (h.category !== "basicos") {
     const earned = S.completions.filter(c => c.habit_id === id).length * h.points;
     if (earned > 0) await adjustPts(S.currentChild, -earned);
@@ -496,6 +603,7 @@ async function toggleDay(habit_id, day) {
   renderHeader();
   renderHomeBars();
   renderPremios();
+  renderProfileRow();
 }
 
 async function toggleWeekly(habit_id) {
@@ -521,6 +629,7 @@ async function toggleWeekly(habit_id) {
   renderHeader();
   renderHomeBars();
   renderPremios();
+  renderProfileRow();
 }
 
 async function adjustPts(child_id, diff) {
@@ -559,6 +668,7 @@ async function canjear(id) {
   renderPremios();
   renderHeader();
   renderDashboard();
+  renderProfileRow();
   toast(`🎉 ¡${p.name} canjeado!`);
 }
 
@@ -574,7 +684,6 @@ async function startNewWeek() {
   const label = document.getElementById("inp-week-title").value.trim();
   if (!label) return toast("Escribe el título de la semana");
   const oldWeek = S.currentWeek;
-  // Save history for each child
   for (const child of S.children) {
     const entry = { id: uid(), child_id: child.id, week_start: oldWeek, week_label: S.currentWeekLabel, points: getTotalPts(child.id) };
     await call("add_history", entry);
@@ -582,7 +691,6 @@ async function startNewWeek() {
     child.total_points = 0;
     await call("update_points", { child_id: child.id, total_points: 0 });
   }
-  // Delete old completions
   await call("delete_completions_by_week", { week_start: oldWeek });
   S.completions = S.completions.filter(c => c.week_start !== oldWeek);
   S.currentWeek = getWeekStart();
@@ -620,10 +728,8 @@ async function init() {
   loadLocal();
   if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
 
-  // Pre-fill new week input
   document.getElementById("inp-week-title").value = getWeekLabel();
 
-  // ── EVENT LISTENERS ───────────────────────────────────
   // Sidebar
   document.getElementById("btn-menu").addEventListener("click", () => {
     document.getElementById("sidebar").classList.add("open");
@@ -643,13 +749,22 @@ async function init() {
   });
   document.getElementById("btn-back-cat").addEventListener("click", () => showView("home"));
 
-  // Child switch
+  // Child switch (header chip)
   document.getElementById("btn-child-switch").addEventListener("click", () => {
     const modal = document.getElementById("modal-child");
     const list = document.getElementById("modal-child-list");
-    list.innerHTML = S.children.map(c =>
-      `<button class="modal-child-btn ${c.id === S.currentChild ? "sel" : ""}" data-cid="${c.id}">${c.name}</button>`
-    ).join("") || '<p style="color:var(--t3);text-align:center;padding:10px;">Sin perfiles — ve a ⚙️ Config</p>';
+    if (!S.children.length) { openAddProfileModal(); return; }
+    list.innerHTML = S.children.map((c, i) =>
+      `<button class="modal-child-btn ${c.id === S.currentChild ? "sel" : ""}" data-cid="${c.id}">
+        <span class="mc-avatar">${getChildAvatar(c, i)}</span>
+        <span>${c.name}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--t3);">⭐ ${getValidPts(c.id)}</span>
+      </button>`
+    ).join("") +
+    `<button class="modal-child-btn" id="btn-modal-new-child" style="color:var(--p);">
+      <span class="mc-avatar">➕</span>
+      <span>Nuevo perfil</span>
+    </button>`;
     list.querySelectorAll("[data-cid]").forEach(b => {
       b.addEventListener("click", () => {
         S.currentChild = b.dataset.cid;
@@ -657,9 +772,27 @@ async function init() {
         renderAll();
       });
     });
+    document.getElementById("btn-modal-new-child")?.addEventListener("click", () => {
+      modal.classList.add("hidden");
+      openAddProfileModal();
+    });
     modal.classList.remove("hidden");
   });
   document.getElementById("btn-modal-child-close").addEventListener("click", () => document.getElementById("modal-child").classList.add("hidden"));
+
+  // Empty state CTA
+  document.getElementById("btn-create-first")?.addEventListener("click", openAddProfileModal);
+
+  // Add profile modal
+  document.getElementById("btn-profile-save").addEventListener("click", addChild);
+  document.getElementById("btn-profile-cancel").addEventListener("click", closeAddProfileModal);
+  document.getElementById("inp-profile-name").addEventListener("keypress", e => { if (e.key === "Enter") addChild(); });
+  document.getElementById("modal-add-profile").addEventListener("click", e => {
+    if (e.target === document.getElementById("modal-add-profile")) closeAddProfileModal();
+  });
+
+  // Config add child button
+  document.getElementById("btn-cfg-add-child").addEventListener("click", openAddProfileModal);
 
   // Nueva semana
   document.getElementById("btn-new-week").addEventListener("click", () => {
@@ -692,24 +825,15 @@ async function init() {
   document.getElementById("btn-add-premio").addEventListener("click", addPremio);
 
   // Config
-  document.getElementById("btn-add-child").addEventListener("click", addChild);
-  document.getElementById("inp-new-child").addEventListener("keypress", e => { if (e.key === "Enter") addChild(); });
   document.getElementById("btn-save-labels").addEventListener("click", saveLabels);
   document.getElementById("btn-clear-all").addEventListener("click", () => document.getElementById("clear-confirm").classList.remove("hidden"));
   document.getElementById("btn-clear-yes").addEventListener("click", clearAll);
   document.getElementById("btn-clear-no").addEventListener("click", () => document.getElementById("clear-confirm").classList.add("hidden"));
 
-  const bannerCreateBtn = document.getElementById("btn-banner-create");
-  const bannerInput = document.getElementById("inp-banner-child");
-  if (bannerCreateBtn) {
-    bannerCreateBtn.addEventListener("click", () => addChild("inp-banner-child"));
-    if (bannerInput) bannerInput.addEventListener("keypress", e => { if (e.key === "Enter") addChild("inp-banner-child"); });
-  }
-
-  // Initial render (local data while DB loads)
+  // Initial render
   renderAll();
 
-  // Load from DB (may overwrite local)
+  // Load from DB
   const loaded = await loadFromDB();
   if (loaded) {
     if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
@@ -717,7 +841,6 @@ async function init() {
     renderAll();
   }
 
-  // Check DB status in config
   checkDbStatus();
 
   // Hide splash
