@@ -622,6 +622,27 @@ function renderConfig() {
     setPinVerified();
   }
 
+  // ── NO FAMILY SET → show setup prompt ─────────────────
+  if (!S.family_id) {
+    cont.innerHTML = `
+      <div style="text-align:center;padding:30px 16px;">
+        <div style="font-size:56px;margin-bottom:12px;">🏠</div>
+        <p style="font-family:var(--ff-d);font-size:22px;font-weight:800;margin-bottom:8px;">¡Configura tu familia!</p>
+        <p style="font-size:14px;color:var(--t2);margin-bottom:24px;line-height:1.5;">
+          Crea el perfil de tu familia para empezar a usar MisHábitos
+        </p>
+        <button class="btn-primary" id="btn-go-setup" style="max-width:280px;margin:0 auto;">
+          🚀 Crear mi familia
+        </button>
+      </div>`;
+    document.getElementById("btn-go-setup").addEventListener("click", () => {
+      localStorage.clear();
+      sessionStorage.clear();
+      location.reload();
+    });
+    return;
+  }
+
   // Which child to manage (default to first)
   if (!S.configChildId && S.children.length) S.configChildId = S.children[0].id;
 
