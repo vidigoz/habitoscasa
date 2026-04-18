@@ -343,6 +343,44 @@
 <!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
 
+<!-- ══════════════════════════════════════════════
+     AI CHAT PANEL
+     ══════════════════════════════════════════════ -->
+<button id="btn-chat-open" class="chat-fab hidden" aria-label="Asistente IA">
+  <span class="chat-fab-icon">🤖</span>
+</button>
+
+<div id="chat-panel" class="chat-panel hidden">
+  <div class="chat-header">
+    <div class="chat-header-info">
+      <span class="chat-header-icon">🤖</span>
+      <div>
+        <p class="chat-header-title">Asistente MisHábitos</p>
+        <p class="chat-header-sub" id="chat-provider-label">Conectando...</p>
+      </div>
+    </div>
+    <button id="btn-chat-close" class="icon-btn" aria-label="Cerrar">✕</button>
+  </div>
+
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-welcome">
+      <div class="chat-welcome-emoji">👋</div>
+      <p class="chat-welcome-title">¡Hola! Soy tu asistente</p>
+      <p class="chat-welcome-sub">Puedo ayudarte a crear hábitos, explicar estadísticas, sugerir recompensas y más — todo basado en los datos de tu familia.</p>
+      <div class="chat-suggestions" id="chat-suggestions"></div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <textarea id="chat-input" class="chat-input" placeholder="Pregunta algo sobre tus hijos, hábitos o estadísticas..." rows="1"></textarea>
+    <button id="btn-chat-send" class="chat-send-btn" aria-label="Enviar">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M2 10L18 2L10 18L8 11L2 10Z" fill="currentColor"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>

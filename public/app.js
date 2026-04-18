@@ -296,6 +296,7 @@ async function createFamily(pin) {
   call("create_family", { id, name, pin, family_id: id }).catch(() => {});
   hideSetupScreen();
   document.getElementById("app").classList.remove("hidden");
+  updateChatFabVisibility();
   renderAll();
   toast(`🎉 ¡Familia "${name}" creada!`);
 }
@@ -806,6 +807,9 @@ function renderConfig() {
       <p class="card-desc">La app usa tu base de datos Neon conectada en Netlify.</p>
     </div>
 
+    <!-- AI Assistant -->
+    ${buildAiConfigCard()}
+
     <!-- Danger -->
     <div class="card card-danger">
       <h3 class="card-title danger-title">⚠️ Zona de peligro</h3>
@@ -821,6 +825,7 @@ function renderConfig() {
   `;
 
   attachConfigListeners();
+  attachAiConfigListeners();
   checkDbStatus();
 }
 
@@ -1172,6 +1177,307 @@ async function clearAll() {
   toast("🗑️ Datos eliminados");
 }
 
+// ══════════════════════════════════════════════════════════
+//  AI ASSISTANT
+// ══════════════════════════════════════════════════════════
+const AI_API = "/api/ai";
+let _chatHistory = [];
+let _chatOpen = false;
+
+function getAiProvider() { return localStorage.getItem("mh_ai_provider") || "openai"; }
+function getAiKey() { return localStorage.getItem("mh_ai_key") || ""; }
+function setAiProvider(p) { localStorage.setItem("mh_ai_provider", p); }
+function setAiKey(k) { localStorage.setItem("mh_ai_key", k); }
+
+function updateChatFabVisibility() {
+  const fab = document.getElementById("btn-chat-open");
+  if (!fab) return;
+  fab.classList.toggle("hidden", !getAiKey());
+}
+
+function buildAIContext() {
+  const lines = [];
+  lines.push(`Eres el asistente de MisHábitos, una app de seguimiento de hábitos familiares.`);
+  lines.push(`Tu rol es ayudar a los padres a gestionar hábitos, recompensas y analizar el desempeño de sus hijos.`);
+  lines.push(`IMPORTANTE: Solo puedes hablar sobre los datos de esta familia. No des consejos ajenos a la app.`);
+  lines.push(`Responde siempre en español, de forma amigable, concisa y motivadora.`);
+  lines.push(``);
+
+  if (S.family_name) lines.push(`Familia: ${S.family_name}`);
+  lines.push(`Semana actual: ${S.currentWeekLabel}`);
+  lines.push(``);
+
+  if (!S.children.length) {
+    lines.push(`Aún no hay perfiles de niños registrados.`);
+  } else {
+    lines.push(`=== PERFILES (${S.children.length}) ===`);
+    S.children.forEach((c, i) => {
+      const avatar = getChildAvatar(c, i);
+      const myHabits = S.habits.filter(h => h.child_id === c.id);
+      const myPremios = S.premios.filter(p => p.child_id === c.id);
+      const weekComps = S.completions.filter(x => x.child_id === c.id && x.week_start === S.currentWeek);
+      const doneHabits = myHabits.filter(isHabitComplete).length;
+      const basicos = myHabits.filter(h => h.category === "basicos");
+      const basicosDone = basicos.every(isHabitComplete);
+      const pts = getTotalPts(c.id);
+      const validPts = getValidPts(c.id);
+
+      lines.push(`\n${avatar} ${c.name}:`);
+      lines.push(`  Puntos totales: ${pts} | Puntos válidos: ${validPts} | Básicos completos: ${basicosDone ? "Sí" : "No"}`);
+      lines.push(`  Hábitos esta semana: ${doneHabits}/${myHabits.length} completados`);
+
+      if (myHabits.length) {
+        lines.push(`  Hábitos:`);
+        myHabits.forEach(h => {
+          const done = countDone(h);
+          const complete = isHabitComplete(h);
+          lines.push(`    - [${h.category}] ${h.name} (${h.type}) ${h.category !== "basicos" ? `${h.points}pts` : ""} → ${complete ? "✅ completo" : `${done} completado(s)`}`);
+        });
+      }
+
+      if (myPremios.length) {
+        lines.push(`  Premios:`);
+        myPremios.forEach(p => {
+          lines.push(`    - ${p.name}: ${p.points_required} pts ${p.redeemed ? "(canjeado)" : "(pendiente)"}`);
+        });
+      }
+    });
+  }
+
+  if (S.history.length) {
+    lines.push(`\n=== HISTORIAL (últimas semanas) ===`);
+    const recent = [...S.history].sort((a, b) => b.week_start.localeCompare(a.week_start)).slice(0, 10);
+    recent.forEach(h => {
+      const child = S.children.find(c => c.id === h.child_id);
+      if (child) lines.push(`  ${child.name} — ${h.week_label || h.week_start}: ${h.points} pts`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function chatAddBubble(role, text) {
+  const msgs = document.getElementById("chat-messages");
+  if (!msgs) return;
+  // Remove welcome screen on first real message
+  const welcome = msgs.querySelector(".chat-welcome");
+  if (welcome) welcome.style.display = "none";
+
+  const div = document.createElement("div");
+  div.className = `chat-msg chat-msg-${role}`;
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble";
+  bubble.textContent = text;
+  div.appendChild(bubble);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return bubble;
+}
+
+function chatShowTyping() {
+  const msgs = document.getElementById("chat-messages");
+  if (!msgs) return null;
+  const welcome = msgs.querySelector(".chat-welcome");
+  if (welcome) welcome.style.display = "none";
+  const div = document.createElement("div");
+  div.className = "chat-msg chat-msg-assistant";
+  div.id = "chat-typing";
+  div.innerHTML = `<div class="chat-bubble typing-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendChatMessage(text) {
+  text = text || document.getElementById("chat-input")?.value.trim();
+  if (!text) return;
+  const key = getAiKey();
+  if (!key) { toast("Configura tu API key en ⚙️ Config → Asistente IA"); return; }
+
+  const inputEl = document.getElementById("chat-input");
+  if (inputEl) { inputEl.value = ""; inputEl.style.height = "auto"; }
+  document.getElementById("btn-chat-send").disabled = true;
+
+  chatAddBubble("user", text);
+  _chatHistory.push({ role: "user", content: text });
+
+  const typingEl = chatShowTyping();
+
+  try {
+    const res = await fetch(AI_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: getAiProvider(),
+        api_key: key,
+        system: buildAIContext(),
+        messages: _chatHistory,
+      }),
+    });
+    const data = await res.json();
+    typingEl?.remove();
+
+    if (!data.ok) {
+      chatAddBubble("assistant", `❌ Error: ${data.error || "No se pudo conectar con el asistente"}`);
+    } else {
+      const reply = data.reply;
+      _chatHistory.push({ role: "assistant", content: reply });
+      chatAddBubble("assistant", reply);
+    }
+  } catch (e) {
+    typingEl?.remove();
+    chatAddBubble("assistant", "❌ Error de conexión. Verifica tu API key e intenta de nuevo.");
+  }
+
+  document.getElementById("btn-chat-send").disabled = false;
+  document.getElementById("chat-messages").scrollTop = 999999;
+}
+
+function renderChatSuggestions() {
+  const el = document.getElementById("chat-suggestions");
+  if (!el) return;
+  const suggestions = [];
+  if (S.children.length) {
+    const child = S.children.find(c => c.id === S.currentChild) || S.children[0];
+    suggestions.push(`¿Cómo va ${child.name} esta semana?`);
+    suggestions.push(`Sugiere hábitos para ${child.name}`);
+  } else {
+    suggestions.push("¿Qué hábitos me recomiendas para empezar?");
+  }
+  suggestions.push("¿Qué premio sería motivador?");
+  suggestions.push("Explícame cómo funciona el sistema de puntos");
+  el.innerHTML = suggestions.map(s =>
+    `<button class="chat-suggestion" data-sug="${encodeURIComponent(s)}">${s}</button>`
+  ).join("");
+  el.querySelectorAll(".chat-suggestion").forEach(b =>
+    b.addEventListener("click", () => sendChatMessage(decodeURIComponent(b.dataset.sug)))
+  );
+}
+
+function openChatPanel() {
+  const panel = document.getElementById("chat-panel");
+  panel.classList.remove("hidden");
+  _chatOpen = true;
+  renderChatSuggestions();
+  // Update provider label
+  const lbl = document.getElementById("chat-provider-label");
+  const providerNames = { openai: "ChatGPT (gpt-4o-mini)", claude: "Claude (Haiku)", gemini: "Gemini (1.5 Flash)" };
+  if (lbl) lbl.textContent = providerNames[getAiProvider()] || getAiProvider();
+  document.getElementById("chat-input")?.focus();
+}
+
+function closeChatPanel() {
+  document.getElementById("chat-panel").classList.add("hidden");
+  _chatOpen = false;
+}
+
+// ── AI CONFIG CARD (injected into renderConfig) ───────────
+function buildAiConfigCard() {
+  const provider = getAiProvider();
+  const key = getAiKey();
+  const providers = [
+    { id: "openai", label: "ChatGPT", icon: "🟢", sub: "gpt-4o-mini" },
+    { id: "claude", label: "Claude", icon: "🟠", sub: "Haiku" },
+    { id: "gemini", label: "Gemini", icon: "🔵", sub: "1.5 Flash" },
+  ];
+  return `
+    <div class="card" id="ai-config-card">
+      <h3 class="card-title">🤖 Asistente IA</h3>
+      <p class="card-desc" style="margin-bottom:14px;">Conecta tu propia API key para activar el asistente. Tu key se guarda solo en este dispositivo.</p>
+      <div class="ai-provider-grid">
+        ${providers.map(p =>
+          `<button class="ai-provider-btn${provider === p.id ? " active" : ""}" data-ai-provider="${p.id}">
+            <span style="font-size:22px;">${p.icon}</span>
+            <span style="font-weight:700;">${p.label}</span>
+            <span style="font-size:11px;color:var(--t3);">${p.sub}</span>
+          </button>`
+        ).join("")}
+      </div>
+      <div class="ai-key-row">
+        <input id="inp-ai-key" class="field mb0" type="password" placeholder="sk-... o tu API key" value="${key}" autocomplete="off">
+        <button id="btn-ai-toggle-key" class="btn-ghost btn-sm" style="flex-shrink:0;">👁️</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn-primary btn-sm" id="btn-ai-save">Guardar</button>
+        <button class="btn-ghost btn-sm" id="btn-ai-test">Probar conexión</button>
+        ${key ? `<button class="btn-ghost btn-sm" id="btn-ai-clear" style="color:var(--danger);">Borrar key</button>` : ""}
+      </div>
+      <div id="ai-status-badge" class="ai-status-badge hidden"></div>
+    </div>`;
+}
+
+function attachAiConfigListeners() {
+  // Provider buttons
+  document.querySelectorAll("[data-ai-provider]").forEach(b => {
+    b.addEventListener("click", () => {
+      setAiProvider(b.dataset.aiProvider);
+      document.querySelectorAll("[data-ai-provider]").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+    });
+  });
+
+  // Toggle key visibility
+  document.getElementById("btn-ai-toggle-key")?.addEventListener("click", () => {
+    const inp = document.getElementById("inp-ai-key");
+    inp.type = inp.type === "password" ? "text" : "password";
+  });
+
+  // Save key
+  document.getElementById("btn-ai-save")?.addEventListener("click", () => {
+    const key = document.getElementById("inp-ai-key").value.trim();
+    setAiKey(key);
+    updateChatFabVisibility();
+    const badge = document.getElementById("ai-status-badge");
+    badge.textContent = key ? "✅ API key guardada" : "⚠️ Key borrada";
+    badge.className = "ai-status-badge " + (key ? "ok" : "warn");
+    badge.classList.remove("hidden");
+    setTimeout(() => badge.classList.add("hidden"), 2500);
+    toast(key ? "✅ API key guardada" : "⚠️ Key eliminada");
+  });
+
+  // Test connection
+  document.getElementById("btn-ai-test")?.addEventListener("click", async () => {
+    const key = document.getElementById("inp-ai-key").value.trim();
+    if (!key) { toast("Escribe primero tu API key"); return; }
+    const badge = document.getElementById("ai-status-badge");
+    badge.textContent = "Probando conexión...";
+    badge.className = "ai-status-badge";
+    badge.classList.remove("hidden");
+    try {
+      const res = await fetch(AI_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: getAiProvider(),
+          api_key: key,
+          system: "Responde solo 'OK'",
+          messages: [{ role: "user", content: "test" }],
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        badge.textContent = "✅ Conexión exitosa";
+        badge.className = "ai-status-badge ok";
+      } else {
+        badge.textContent = `❌ ${data.error || "Error"}`;
+        badge.className = "ai-status-badge error";
+      }
+    } catch {
+      badge.textContent = "❌ Error de red";
+      badge.className = "ai-status-badge error";
+    }
+  });
+
+  // Clear key
+  document.getElementById("btn-ai-clear")?.addEventListener("click", () => {
+    setAiKey("");
+    document.getElementById("inp-ai-key").value = "";
+    updateChatFabVisibility();
+    renderConfig();
+    toast("🗑️ API key eliminada");
+  });
+}
+
 // ── INIT ──────────────────────────────────────────────────
 async function init() {
   loadLocal();
@@ -1249,6 +1555,18 @@ async function init() {
     document.getElementById("modal-week").classList.add("hidden"));
   document.getElementById("inp-week-title").addEventListener("keypress", e => { if (e.key === "Enter") startNewWeek(); });
 
+  // Chat
+  document.getElementById("btn-chat-open")?.addEventListener("click", openChatPanel);
+  document.getElementById("btn-chat-close")?.addEventListener("click", closeChatPanel);
+  document.getElementById("btn-chat-send")?.addEventListener("click", () => sendChatMessage());
+  document.getElementById("chat-input")?.addEventListener("keypress", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+  });
+  document.getElementById("chat-input")?.addEventListener("input", function() {
+    this.style.height = "auto";
+    this.style.height = Math.min(this.scrollHeight, 120) + "px";
+  });
+
   // Setup screen step 1 button
   document.getElementById("btn-setup-s1")?.addEventListener("click", () => {
     const name = document.getElementById("inp-family-name").value.trim();
@@ -1275,6 +1593,7 @@ async function init() {
         // Returning user — show app
         document.getElementById("app").classList.remove("hidden");
         if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
+        updateChatFabVisibility();
         renderAll();
 
         // Load fresh data from DB then check for auto week-rollover
