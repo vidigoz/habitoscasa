@@ -25,6 +25,16 @@ function err(msg, code = 400) {
 
 // ── INIT DB TABLES ─────────────────────────────────────────────────────────
 async function initDb(sql) {
+  // Families — top-level entity with PIN
+  await sql`
+    CREATE TABLE IF NOT EXISTS families (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      pin TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`;
+
+  // Children
   await sql`
     CREATE TABLE IF NOT EXISTS children (
       id TEXT PRIMARY KEY,
@@ -32,6 +42,10 @@ async function initDb(sql) {
       total_points INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
+  // Migration: add family_id and avatar if missing
+  await sql`ALTER TABLE children ADD COLUMN IF NOT EXISTS family_id TEXT DEFAULT 'default'`;
+  await sql`ALTER TABLE children ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT '🦁'`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS habits (
       id TEXT PRIMARY KEY,
@@ -70,6 +84,7 @@ async function initDb(sql) {
       points INTEGER DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
+  // Settings keyed as "family_id:key"
   await sql`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
@@ -91,33 +106,63 @@ export const handler = async (event) => {
   try { sql = getDb(); } catch (e) { return err(e.message, 500); }
 
   try {
-    // Always ensure tables exist (Neon is serverless, cold starts are fast)
     await initDb(sql);
 
     switch (action) {
 
-      // ── LOAD ALL ─────────────────────────────────────────────────
+      // ── FAMILIES ─────────────────────────────────────────────────
+      case "create_family": {
+        const { id, name, pin } = payload;
+        if (!id || !name || !pin) return err("id, name y pin son requeridos");
+        if (!/^\d{4}$/.test(pin)) return err("El PIN debe ser exactamente 4 dígitos numéricos");
+        await sql`INSERT INTO families (id, name, pin) VALUES (${id}, ${name}, ${pin}) ON CONFLICT (id) DO NOTHING`;
+        return ok({ id, name });
+      }
+
+      case "auth_family": {
+        const { family_id, pin } = payload;
+        if (!family_id || !pin) return err("family_id y pin requeridos");
+        const rows = await sql`SELECT * FROM families WHERE id = ${family_id}`;
+        if (!rows.length) return err("Familia no encontrada");
+        if (rows[0].pin !== pin) return err("PIN incorrecto");
+        return ok({ name: rows[0].name });
+      }
+
+      // ── LOAD ALL (scoped to family) ───────────────────────────────
       case "load": {
-        const [children, habits, completions, premios, history, settings_rows] = await Promise.all([
-          sql`SELECT * FROM children ORDER BY created_at`,
-          sql`SELECT * FROM habits ORDER BY created_at`,
-          sql`SELECT * FROM completions ORDER BY created_at`,
-          sql`SELECT * FROM premios ORDER BY created_at`,
-          sql`SELECT * FROM history ORDER BY created_at`,
-          sql`SELECT key, value FROM settings`,
+        const { family_id } = payload;
+        if (!family_id) return ok({ children: [], habits: [], completions: [], premios: [], history: [], settings: {} });
+
+        const children = await sql`SELECT * FROM children WHERE family_id = ${family_id} ORDER BY created_at`;
+        const ids = children.map(c => c.id);
+
+        const [habits, completions, premios, history, sRows] = await Promise.all([
+          ids.length ? sql`SELECT * FROM habits WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
+          ids.length ? sql`SELECT * FROM completions WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
+          ids.length ? sql`SELECT * FROM premios WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
+          ids.length ? sql`SELECT * FROM history WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
+          sql`SELECT key, value FROM settings WHERE key LIKE ${family_id + ":%"}`,
         ]);
+
         const settings = {};
-        settings_rows.forEach(r => { try { settings[r.key] = JSON.parse(r.value); } catch { settings[r.key] = r.value; } });
+        sRows.forEach(r => {
+          const k = r.key.slice(family_id.length + 1);
+          try { settings[k] = JSON.parse(r.value); } catch { settings[k] = r.value; }
+        });
+
         return ok({ children, habits, completions, premios, history, settings });
       }
 
       // ── CHILDREN ─────────────────────────────────────────────────
       case "add_child": {
-        const { id, name } = payload;
-        if (!id || !name) return err("id and name required");
-        await sql`INSERT INTO children (id, name, total_points) VALUES (${id}, ${name}, 0) ON CONFLICT (id) DO NOTHING`;
-        return ok({ id, name, total_points: 0 });
+        const { id, name, family_id, avatar } = payload;
+        if (!id || !name || !family_id) return err("id, name y family_id requeridos");
+        await sql`INSERT INTO children (id, name, total_points, family_id, avatar)
+                  VALUES (${id}, ${name}, 0, ${family_id}, ${avatar || "🦁"})
+                  ON CONFLICT (id) DO NOTHING`;
+        return ok({ id, name, total_points: 0, family_id, avatar: avatar || "🦁" });
       }
+
       case "delete_child": {
         const { child_id } = payload;
         await sql`DELETE FROM completions WHERE child_id = ${child_id}`;
@@ -127,6 +172,7 @@ export const handler = async (event) => {
         await sql`DELETE FROM children WHERE id = ${child_id}`;
         return ok({ deleted: child_id });
       }
+
       case "update_points": {
         const { child_id, total_points } = payload;
         await sql`UPDATE children SET total_points = ${total_points} WHERE id = ${child_id}`;
@@ -141,6 +187,7 @@ export const handler = async (event) => {
                   ON CONFLICT (id) DO NOTHING`;
         return ok(payload);
       }
+
       case "delete_habit": {
         const { habit_id } = payload;
         await sql`DELETE FROM completions WHERE habit_id = ${habit_id}`;
@@ -156,14 +203,24 @@ export const handler = async (event) => {
                   ON CONFLICT (id) DO NOTHING`;
         return ok(payload);
       }
+
       case "delete_completion": {
         const { comp_id } = payload;
         await sql`DELETE FROM completions WHERE id = ${comp_id}`;
         return ok({ deleted: comp_id });
       }
+
       case "delete_completions_by_week": {
-        const { week_start } = payload;
-        await sql`DELETE FROM completions WHERE week_start = ${week_start}`;
+        const { week_start, family_id } = payload;
+        if (family_id) {
+          const ch = await sql`SELECT id FROM children WHERE family_id = ${family_id}`;
+          const ids = ch.map(c => c.id);
+          if (ids.length) {
+            await sql`DELETE FROM completions WHERE week_start = ${week_start} AND child_id = ANY(${ids})`;
+          }
+        } else {
+          await sql`DELETE FROM completions WHERE week_start = ${week_start}`;
+        }
         return ok({ deleted_week: week_start });
       }
 
@@ -175,11 +232,13 @@ export const handler = async (event) => {
                   ON CONFLICT (id) DO NOTHING`;
         return ok(payload);
       }
+
       case "redeem_premio": {
         const { premio_id } = payload;
         await sql`UPDATE premios SET redeemed = true WHERE id = ${premio_id}`;
         return ok({ premio_id });
       }
+
       case "delete_premio": {
         const { premio_id } = payload;
         await sql`DELETE FROM premios WHERE id = ${premio_id}`;
@@ -195,23 +254,30 @@ export const handler = async (event) => {
         return ok(payload);
       }
 
-      // ── SETTINGS ─────────────────────────────────────────────────
+      // ── SETTINGS (keyed as family_id:key) ────────────────────────
       case "save_setting": {
-        const { key, value } = payload;
+        const { key, value, family_id } = payload;
+        const prefixed = family_id ? `${family_id}:${key}` : key;
         const val = typeof value === "string" ? value : JSON.stringify(value);
-        await sql`INSERT INTO settings (key, value) VALUES (${key}, ${val})
+        await sql`INSERT INTO settings (key, value) VALUES (${prefixed}, ${val})
                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
         return ok({ key, value });
       }
 
-      // ── CLEAR ALL ────────────────────────────────────────────────
+      // ── CLEAR ALL (scoped to family) ──────────────────────────────
       case "clear_all": {
-        await sql`DELETE FROM completions`;
-        await sql`DELETE FROM habits`;
-        await sql`DELETE FROM premios`;
-        await sql`DELETE FROM history`;
-        await sql`DELETE FROM children`;
-        await sql`DELETE FROM settings`;
+        const { family_id } = payload;
+        if (!family_id) return err("family_id requerido");
+        const ch = await sql`SELECT id FROM children WHERE family_id = ${family_id}`;
+        const ids = ch.map(c => c.id);
+        if (ids.length) {
+          await sql`DELETE FROM completions WHERE child_id = ANY(${ids})`;
+          await sql`DELETE FROM habits WHERE child_id = ANY(${ids})`;
+          await sql`DELETE FROM premios WHERE child_id = ANY(${ids})`;
+          await sql`DELETE FROM history WHERE child_id = ANY(${ids})`;
+          await sql`DELETE FROM children WHERE family_id = ${family_id}`;
+        }
+        await sql`DELETE FROM settings WHERE key LIKE ${family_id + ":%"}`;
         return ok({ cleared: true });
       }
 

@@ -22,14 +22,70 @@
   </div>
 </div>
 
-<!-- APP SHELL -->
+<!-- ══════════════════════════════════════════════
+     FAMILY SETUP SCREEN (shown on first launch)
+     ══════════════════════════════════════════════ -->
+<div id="setup-screen" class="setup-screen hidden">
+  <div class="setup-wrap">
+
+    <div class="setup-logo">
+      <span class="setup-logo-emoji">⭐</span>
+      <span class="setup-logo-text">MisHábitos</span>
+    </div>
+
+    <!-- Step 1: Family Name -->
+    <div id="setup-s1" class="setup-card">
+      <div class="setup-hero-emoji">🏠</div>
+      <h1 class="setup-h1">¡Bienvenido!</h1>
+      <p class="setup-p">Primero, ponle nombre a tu familia para empezar</p>
+      <input id="inp-family-name" class="field" type="text"
+             placeholder="Ej: Familia García" maxlength="30" autocomplete="off">
+      <button id="btn-setup-s1" class="btn-primary">Siguiente →</button>
+    </div>
+
+    <!-- Step 2: Create PIN -->
+    <div id="setup-s2" class="setup-card hidden">
+      <div class="setup-hero-emoji">🔐</div>
+      <h1 class="setup-h1">PIN de papás</h1>
+      <p class="setup-p">Crea un PIN de 4 dígitos para proteger la configuración</p>
+      <div class="pin-dots" id="setup-dots-1">
+        <span class="pin-dot"></span><span class="pin-dot"></span>
+        <span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <div class="pin-pad" id="setup-pad-1"></div>
+    </div>
+
+    <!-- Step 3: Confirm PIN -->
+    <div id="setup-s3" class="setup-card hidden">
+      <div class="setup-hero-emoji">✅</div>
+      <h1 class="setup-h1">Confirma el PIN</h1>
+      <p class="setup-p">Ingresa el PIN nuevamente para confirmar</p>
+      <div class="pin-dots" id="setup-dots-2">
+        <span class="pin-dot"></span><span class="pin-dot"></span>
+        <span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <p id="setup-confirm-err" class="pin-error hidden">❌ Los PINs no coinciden</p>
+      <div class="pin-pad" id="setup-pad-2"></div>
+      <button id="btn-setup-back" class="btn-ghost w-full" style="margin-top:8px;">← Cambiar PIN</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     APP SHELL
+     ══════════════════════════════════════════════ -->
 <div id="app" class="app hidden">
 
   <!-- HEADER -->
   <header class="header">
     <div class="hd-left">
       <button id="btn-menu" class="icon-btn" aria-label="Menú">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><rect y="4" width="22" height="2.5" rx="1.25" fill="currentColor"/><rect y="10" width="22" height="2.5" rx="1.25" fill="currentColor"/><rect y="16" width="22" height="2.5" rx="1.25" fill="currentColor"/></svg>
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect y="4" width="22" height="2.5" rx="1.25" fill="currentColor"/>
+          <rect y="10" width="22" height="2.5" rx="1.25" fill="currentColor"/>
+          <rect y="16" width="22" height="2.5" rx="1.25" fill="currentColor"/>
+        </svg>
       </button>
       <span class="app-wordmark">MisHábitos</span>
     </div>
@@ -52,7 +108,10 @@
   <!-- SIDEBAR -->
   <aside id="sidebar" class="sidebar">
     <div class="sb-top">
-      <span class="sb-brand">⭐ MisHábitos</span>
+      <div>
+        <span class="sb-brand">⭐ MisHábitos</span>
+        <p id="sb-family-name" class="sb-family-name"></p>
+      </div>
       <button id="btn-sb-close" class="icon-btn">✕</button>
     </div>
     <nav class="sb-nav">
@@ -85,20 +144,16 @@
 
     <!-- ── HOME ─────────────────────────────────── -->
     <section id="view-home" class="view active">
-
-      <!-- Profiles row -->
       <div class="section-label">👦 Perfiles</div>
       <div id="profile-row" class="profile-row"></div>
 
-      <!-- Empty state (no profiles) -->
       <div id="empty-state" class="empty-state hidden">
         <div class="empty-emoji">🌟</div>
         <p class="empty-title">¡Bienvenido a MisHábitos!</p>
-        <p class="empty-sub">Crea el primer perfil para empezar a registrar hábitos</p>
-        <button class="btn-primary btn-create-first" id="btn-create-first">+ Crear primer perfil</button>
+        <p class="empty-sub">Los papás pueden crear perfiles desde ⚙️ Configuración</p>
+        <button class="btn-primary btn-create-first" id="btn-open-config">⚙️ Ir a Configuración</button>
       </div>
 
-      <!-- Week bar -->
       <div id="week-bar" class="week-bar hidden">
         <div class="wk-left">
           <span class="wk-icon">📅</span>
@@ -107,11 +162,10 @@
         <div class="pts-chip">
           <span>⭐</span>
           <span id="home-pts">0</span>
-          <span>pts esta semana</span>
+          <span>pts</span>
         </div>
       </div>
 
-      <!-- Category cards -->
       <div class="cat-grid" id="cat-grid">
         <div class="cat-card cat-basicos" data-cat="basicos" id="card-basicos">
           <div class="cat-icon-bg">🔒</div>
@@ -123,7 +177,6 @@
           <div class="cat-badge" id="cnt-basicos">0</div>
           <div class="cat-arrow">›</div>
         </div>
-
         <div class="cat-card cat-extras" data-cat="extras" id="card-extras">
           <div class="cat-icon-bg">🔄</div>
           <div class="cat-info">
@@ -134,7 +187,6 @@
           <div class="cat-badge" id="cnt-extras">0</div>
           <div class="cat-arrow">›</div>
         </div>
-
         <div class="cat-card cat-especiales" data-cat="especiales" id="card-especiales">
           <div class="cat-icon-bg">🏆</div>
           <div class="cat-info">
@@ -152,11 +204,13 @@
       </div>
     </section>
 
-    <!-- ── CATEGORY VIEW ──────────────────────────────── -->
+    <!-- ── CATEGORY (kids: tracking only) ───────────── -->
     <section id="view-category" class="view hidden">
       <div class="view-topbar">
         <button class="back-btn" id="btn-back-cat">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 14L6 9L11 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M11 14L6 9L11 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
           Volver
         </button>
         <div class="view-heading">
@@ -164,56 +218,20 @@
           <h2 id="catv-title" class="view-h2">Básicos</h2>
         </div>
       </div>
-
-      <div class="form-card">
-        <p class="form-card-title">➕ Agregar hábito</p>
-        <input id="inp-habit-name" class="field" type="text" placeholder="Nombre del hábito...">
-        <div class="field-row">
-          <div class="field-group">
-            <label class="field-label">Tipo</label>
-            <div class="seg-ctrl" id="seg-type">
-              <button class="seg-btn active" data-val="diario">📅 Diario</button>
-              <button class="seg-btn" data-val="semanal">☀️ Semanal</button>
-            </div>
-            <input type="hidden" id="hval-type" value="diario">
-          </div>
-          <div class="field-group" id="pts-field-group">
-            <label class="field-label">Puntos</label>
-            <div class="pts-row" id="pts-row">
-              <button class="pts-b" data-p="0">0</button>
-              <button class="pts-b active" data-p="2">2</button>
-              <button class="pts-b" data-p="3">3</button>
-              <button class="pts-b" data-p="5">5</button>
-            </div>
-            <input type="hidden" id="hval-pts" value="2">
-          </div>
-        </div>
-        <button id="btn-add-habit" class="btn-primary">Agregar hábito</button>
-      </div>
-
       <div id="habits-list" class="habits-list"></div>
     </section>
 
-    <!-- ── PREMIOS ───────────────────────────────── -->
+    <!-- ── PREMIOS (kids: view + redeem only) ────────── -->
     <section id="view-premios" class="view hidden">
       <div class="view-intro">
-        <h2 class="view-h2">🎁 Premios</h2>
+        <h2 class="view-h2">🎁 Mis Premios</h2>
         <p class="view-desc">Canjea tus puntos ganados</p>
       </div>
-
       <div class="pts-hero">
         <p class="pts-hero-lbl">Puntos disponibles</p>
         <p class="pts-hero-num" id="prem-pts">0</p>
         <p class="pts-hero-note" id="prem-note"></p>
       </div>
-
-      <div class="form-card">
-        <p class="form-card-title">➕ Crear premio</p>
-        <input id="inp-prem-name" class="field" type="text" placeholder="Nombre del premio...">
-        <input id="inp-prem-pts" class="field" type="number" min="1" placeholder="Puntos requeridos...">
-        <button id="btn-add-premio" class="btn-primary">Crear premio</button>
-      </div>
-
       <div id="premios-list" class="premios-list"></div>
     </section>
 
@@ -235,53 +253,9 @@
       <div id="hist-content"></div>
     </section>
 
-    <!-- ── CONFIG ────────────────────────────────── -->
+    <!-- ── CONFIG (parents only, PIN protected) ─────── -->
     <section id="view-config" class="view hidden">
-      <div class="view-intro">
-        <h2 class="view-h2">⚙️ Configuración</h2>
-      </div>
-
-      <!-- Perfiles -->
-      <div class="card">
-        <h3 class="card-title">👦 Perfiles de niños</h3>
-        <p class="card-desc" style="margin-bottom:12px;">Agrega o elimina perfiles. También puedes crearlos desde la pantalla de Inicio.</p>
-        <div id="children-cfg" class="children-cfg"></div>
-        <button class="btn-primary btn-sm" id="btn-cfg-add-child" style="margin-top:4px;">+ Agregar perfil</button>
-      </div>
-
-      <!-- Categorías -->
-      <div class="card">
-        <h3 class="card-title">🏷️ Nombres de categorías</h3>
-        <div class="cat-label-form">
-          <div class="lbl-row"><span class="lbl-ico">🔒</span><input id="lf-basicos" class="field mb0" placeholder="Básicos"></div>
-          <div class="lbl-row"><span class="lbl-ico">🔄</span><input id="lf-extras" class="field mb0" placeholder="Extras"></div>
-          <div class="lbl-row"><span class="lbl-ico">🏆</span><input id="lf-especiales" class="field mb0" placeholder="Especiales"></div>
-        </div>
-        <button id="btn-save-labels" class="btn-primary btn-sm">Guardar nombres</button>
-      </div>
-
-      <!-- DB -->
-      <div class="card card-db">
-        <h3 class="card-title">🗄️ Base de datos</h3>
-        <div id="db-status-box" class="db-status-box">
-          <span id="db-status-dot" class="db-dot db-dot-checking">●</span>
-          <span id="db-status-text">Verificando conexión...</span>
-        </div>
-        <p class="card-desc">La app usa tu base de datos Neon conectada en Netlify.</p>
-      </div>
-
-      <!-- Danger -->
-      <div class="card card-danger">
-        <h3 class="card-title danger-title">⚠️ Zona de peligro</h3>
-        <button id="btn-clear-all" class="btn-danger w-full">🗑️ Eliminar todos los datos</button>
-        <div id="clear-confirm" class="confirm-box hidden">
-          <p>¿Borrar absolutamente todo? Esta acción no se puede deshacer.</p>
-          <div class="confirm-btns">
-            <button id="btn-clear-yes" class="btn-danger btn-sm">Sí, borrar todo</button>
-            <button id="btn-clear-no" class="btn-ghost btn-sm">Cancelar</button>
-          </div>
-        </div>
-      </div>
+      <div id="config-content"></div>
     </section>
 
   </main>
@@ -289,28 +263,42 @@
   <!-- BOTTOM NAV -->
   <nav class="bnav">
     <button class="bnav-btn active" data-view="home">
-      <span class="bnav-icon">🏠</span>
-      <span>Inicio</span>
+      <span class="bnav-icon">🏠</span><span>Inicio</span>
     </button>
     <button class="bnav-btn" data-view="dashboard">
-      <span class="bnav-icon">📊</span>
-      <span>Stats</span>
+      <span class="bnav-icon">📊</span><span>Stats</span>
     </button>
     <button class="bnav-btn" data-view="premios">
-      <span class="bnav-icon">🎁</span>
-      <span>Premios</span>
+      <span class="bnav-icon">🎁</span><span>Premios</span>
     </button>
     <button class="bnav-btn" data-view="historial">
-      <span class="bnav-icon">📅</span>
-      <span>Historial</span>
+      <span class="bnav-icon">📅</span><span>Historial</span>
     </button>
     <button class="bnav-btn" data-view="config">
-      <span class="bnav-icon">⚙️</span>
-      <span>Config</span>
+      <span class="bnav-icon">⚙️</span><span>Config</span>
     </button>
   </nav>
 
 </div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════
+     MODAL: PIN entry (config gate)
+     ══════════════════════════════════════════════ -->
+<div id="modal-pin" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="pin-modal-icon">🔐</div>
+    <p class="modal-title">Acceso de papás</p>
+    <p class="modal-sub">Ingresa el PIN para gestionar la configuración</p>
+    <div class="pin-dots" id="modal-pin-dots">
+      <span class="pin-dot"></span><span class="pin-dot"></span>
+      <span class="pin-dot"></span><span class="pin-dot"></span>
+    </div>
+    <p id="modal-pin-error" class="pin-error hidden">❌ PIN incorrecto</p>
+    <div class="pin-pad" id="modal-pin-pad"></div>
+    <button id="btn-pin-cancel" class="btn-ghost w-full" style="margin-top:10px;">Cancelar</button>
+  </div>
+</div>
 
 <!-- MODAL: add profile -->
 <div id="modal-add-profile" class="modal-bg hidden">
@@ -319,7 +307,8 @@
     <p class="modal-title">✨ Nuevo perfil</p>
     <p class="modal-sub">Elige un avatar y escribe el nombre</p>
     <div class="emoji-grid" id="emoji-grid"></div>
-    <input id="inp-profile-name" class="field" type="text" placeholder="Nombre del niño/a..." maxlength="20" autocomplete="off">
+    <input id="inp-profile-name" class="field" type="text"
+           placeholder="Nombre del niño/a..." maxlength="20" autocomplete="off">
     <div class="modal-actions">
       <button id="btn-profile-save" class="btn-primary">Crear perfil 🎉</button>
       <button id="btn-profile-cancel" class="btn-ghost w-full">Cancelar</button>
@@ -333,7 +322,7 @@
     <div class="modal-handle"></div>
     <p class="modal-title">👦 Cambiar perfil</p>
     <div id="modal-child-list" class="modal-list"></div>
-    <button id="btn-modal-child-close" class="btn-ghost w-full">Cancelar</button>
+    <button id="btn-modal-child-close" class="btn-ghost w-full">Cerrar</button>
   </div>
 </div>
 
