@@ -181,9 +181,9 @@ export const handler = async (event) => {
 
       // ── HABITS ───────────────────────────────────────────────────
       case "add_habit": {
-        const { id, child_id, category, name, type, points, week_start } = payload;
+        const { id, child_id, category, name, type, points } = payload;
         await sql`INSERT INTO habits (id, child_id, category, name, type, points, week_start)
-                  VALUES (${id}, ${child_id}, ${category}, ${name}, ${type}, ${points}, ${week_start})
+                  VALUES (${id}, ${child_id}, ${category}, ${name}, ${type}, ${points}, '1970-01-01')
                   ON CONFLICT (id) DO NOTHING`;
         return ok(payload);
       }

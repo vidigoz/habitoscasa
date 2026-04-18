@@ -173,7 +173,7 @@ function isHabitComplete(habit) {
   return habit.type === "semanal" ? n >= 1 : n >= 4;
 }
 function basicosComplete(child_id) {
-  const bas = S.habits.filter(h => h.child_id === child_id && h.category === "basicos" && h.week_start === S.currentWeek);
+  const bas = S.habits.filter(h => h.child_id === child_id && h.category === "basicos");
   if (!bas.length) return true;
   return bas.every(isHabitComplete);
 }
@@ -412,7 +412,7 @@ function renderHomeBars() {
   weekBar.classList.remove("hidden");
   document.getElementById("wk-label").textContent = S.currentWeekLabel;
   document.getElementById("home-pts").textContent = getValidPts(child.id);
-  const hasNonBasicos = S.habits.some(h => h.child_id === child.id && h.category !== "basicos" && h.week_start === S.currentWeek);
+  const hasNonBasicos = S.habits.some(h => h.child_id === child.id && h.category !== "basicos");
   if (!basicosComplete(child.id) && hasNonBasicos) lockBanner.classList.remove("hidden");
   else lockBanner.classList.add("hidden");
 }
@@ -420,7 +420,7 @@ function renderHomeBars() {
 function renderCatCards() {
   ["basicos", "extras", "especiales"].forEach(cat => {
     const habits = S.currentChild
-      ? S.habits.filter(h => h.child_id === S.currentChild && h.category === cat && h.week_start === S.currentWeek)
+      ? S.habits.filter(h => h.child_id === S.currentChild && h.category === cat)
       : [];
     const done = habits.filter(isHabitComplete).length;
     document.getElementById(`cnt-${cat}`).textContent = habits.length ? `${done}/${habits.length}` : "0";
@@ -434,7 +434,7 @@ function renderCatView() {
   document.getElementById("catv-icon").textContent = getCatIcon(cat);
   document.getElementById("catv-title").textContent = getCatLabel(cat);
   const habits = S.currentChild
-    ? S.habits.filter(h => h.child_id === S.currentChild && h.category === cat && h.week_start === S.currentWeek)
+    ? S.habits.filter(h => h.child_id === S.currentChild && h.category === cat)
     : [];
   const list = document.getElementById("habits-list");
   if (!habits.length) {
@@ -530,7 +530,7 @@ function renderDashboard() {
   cont.innerHTML = S.children.map((c, i) => {
     const avatar = getChildAvatar(c, i);
     const color = getChildColor(i);
-    const all = S.habits.filter(h => h.child_id === c.id && h.week_start === S.currentWeek);
+    const all = S.habits.filter(h => h.child_id === c.id);
     const done = all.filter(isHabitComplete).length;
     const pct = all.length ? Math.round((done / all.length) * 100) : 0;
     const valid = getValidPts(c.id);
@@ -662,7 +662,7 @@ function renderConfig() {
 
   // Habits list for configChildId + configCat
   const cfgHabits = S.configChildId
-    ? S.habits.filter(h => h.child_id === S.configChildId && h.category === S.configCat && h.week_start === S.currentWeek)
+    ? S.habits.filter(h => h.child_id === S.configChildId && h.category === S.configCat)
     : [];
   const habitsHTML = cfgHabits.length
     ? cfgHabits.map(h => `
@@ -995,7 +995,7 @@ async function addHabitFromConfig() {
   const type = document.getElementById("cfg-hval-type")?.value || "diario";
   const ptsEl = document.getElementById("cfg-hval-pts");
   const points = S.configCat === "basicos" ? 0 : parseInt(ptsEl?.value || "2") || 0;
-  const habit = { id: uid(), child_id: S.configChildId, category: S.configCat, name, type, points, week_start: S.currentWeek };
+  const habit = { id: uid(), child_id: S.configChildId, category: S.configCat, name, type, points };
   const r = await call("add_habit", habit);
   if (!r.ok) toast("⚠️ Guardado local");
   S.habits.push(habit);
@@ -1115,12 +1115,11 @@ async function deletePremio(id) {
   toast("🗑️ Premio eliminado");
 }
 
-async function startNewWeek() {
-  const label = document.getElementById("inp-week-title").value.trim();
-  if (!label) return toast("Escribe el título de la semana");
-  const oldWeek = S.currentWeek;
+async function archiveWeek(oldWeek, oldLabel, newLabel) {
   for (const child of S.children) {
-    const entry = { id: uid(), child_id: child.id, week_start: oldWeek, week_label: S.currentWeekLabel, points: getTotalPts(child.id) };
+    // Skip if already archived this week for this child
+    if (S.history.some(h => h.child_id === child.id && h.week_start === oldWeek)) continue;
+    const entry = { id: uid(), child_id: child.id, week_start: oldWeek, week_label: oldLabel, points: getTotalPts(child.id) };
     await call("add_history", entry);
     S.history.push(entry);
     child.total_points = 0;
@@ -1129,7 +1128,23 @@ async function startNewWeek() {
   await call("delete_completions_by_week", { week_start: oldWeek });
   S.completions = S.completions.filter(c => c.week_start !== oldWeek);
   S.currentWeek = getWeekStart();
-  S.currentWeekLabel = label;
+  S.currentWeekLabel = newLabel || getWeekLabel();
+}
+
+async function checkAutoWeek() {
+  const todayWeek = getWeekStart();
+  if (!S.currentWeek || S.currentWeek === todayWeek) return;
+  // Week changed — auto-archive silently
+  await archiveWeek(S.currentWeek, S.currentWeekLabel, getWeekLabel());
+  saveLocal();
+  renderAll();
+  toast("📅 ¡Nueva semana! El historial se actualizó automáticamente");
+}
+
+async function startNewWeek() {
+  const label = document.getElementById("inp-week-title").value.trim();
+  if (!label) return toast("Escribe el título de la semana");
+  await archiveWeek(S.currentWeek, S.currentWeekLabel, label);
   document.getElementById("modal-week").classList.add("hidden");
   saveLocal();
   renderAll();
@@ -1262,13 +1277,14 @@ async function init() {
         if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
         renderAll();
 
-        // Load fresh data from DB
-        loadFromDB().then(loaded => {
+        // Load fresh data from DB then check for auto week-rollover
+        loadFromDB().then(async loaded => {
           if (loaded) {
             if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
             saveLocal();
-            renderAll();
           }
+          await checkAutoWeek();
+          renderAll();
         });
       }
     }, 400);
