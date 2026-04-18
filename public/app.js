@@ -354,7 +354,7 @@ function renderAll() {
   renderPremios();
   renderDashboard();
   renderHistorial();
-  if (S.currentView === "config" && isPinVerified()) renderConfig();
+  if (S.currentView === "config") renderConfig();
   // Update sidebar family name
   const sbFam = document.getElementById("sb-family-name");
   if (sbFam) sbFam.textContent = S.family_name ? `Familia ${S.family_name}` : "";
@@ -586,6 +586,41 @@ function renderBottomNav() {
 // ══════════════════════════════════════════════════════════
 function renderConfig() {
   const cont = document.getElementById("config-content");
+
+  // ── PIN LOCK SCREEN (if not verified) ──────────────────
+  if (!isPinVerified()) {
+    const hasPinStored = !!localStorage.getItem("mh_pin");
+    if (hasPinStored) {
+      cont.innerHTML = `
+        <div style="text-align:center;padding:20px 0 10px;">
+          <div style="font-size:48px;margin-bottom:8px;">🔐</div>
+          <p style="font-family:var(--ff-d);font-size:22px;font-weight:800;margin-bottom:6px;">Acceso de papás</p>
+          <p style="font-size:13px;color:var(--t2);margin-bottom:20px;">Ingresa el PIN para gestionar la configuración</p>
+          <div class="pin-dots" id="cfg-pin-dots">
+            <span class="pin-dot"></span><span class="pin-dot"></span>
+            <span class="pin-dot"></span><span class="pin-dot"></span>
+          </div>
+          <p id="cfg-pin-error" class="pin-error hidden" style="color:var(--bas-from);">❌ PIN incorrecto</p>
+          <div class="pin-pad" id="cfg-pin-pad"></div>
+        </div>`;
+      buildPinPad("cfg-pin-pad");
+      initPin(document.getElementById("cfg-pin-dots"), (pin) => {
+        if (verifyPin(pin)) {
+          setPinVerified();
+          renderConfig();
+        } else {
+          const errEl = document.getElementById("cfg-pin-error");
+          errEl && errEl.classList.remove("hidden");
+          const dots = document.getElementById("cfg-pin-dots");
+          if (dots) { dots.style.animation = "none"; dots.offsetHeight; dots.style.animation = "shake .4s ease-out"; }
+          setTimeout(() => renderConfig(), 900);
+        }
+      });
+      return;
+    }
+    // No PIN stored yet — treat as open (first-time or recovery)
+    setPinVerified();
+  }
 
   // Which child to manage (default to first)
   if (!S.configChildId && S.children.length) S.configChildId = S.children[0].id;
@@ -847,16 +882,6 @@ function attachConfigListeners() {
 
 // ── NAVIGATION ────────────────────────────────────────────
 function showView(name) {
-  if (name === "config") {
-    if (!isPinVerified()) {
-      openPinModal(() => {
-        S.currentView = "config";
-        doShowView("config");
-        renderConfig();
-      });
-      return;
-    }
-  }
   S.currentView = name;
   doShowView(name);
   if (name === "config") renderConfig();
