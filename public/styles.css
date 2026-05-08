@@ -589,3 +589,30 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .ai-status-badge.ok { background: var(--ok-lt); color: #065F46; }
 .ai-status-badge.err { background: #FFECEC; color: var(--bas-from); }
 .ai-status-badge.none { background: var(--bg); color: var(--t3); }
+
+/* Email linking */
+.cfg-email-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: var(--r-sm);
+  margin-top: 10px; font-size: 13px; font-weight: 600;
+}
+.cfg-email-linked {
+  background: #E8F5E9; border: 1.5px solid #A5D6A7;
+}
+.cfg-email-unlinked {
+  background: #FFF8E1; border: 1.5px dashed #FFCA28;
+}
+.cfg-email-icon { font-size: 18px; flex-shrink: 0; }
+.cfg-email-addr { flex: 1; color: #1B5E20; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfg-email-hint { flex: 1; color: #5D4037; font-size: 12px; line-height: 1.4; }
+.cfg-email-badge {
+  font-size: 11px; font-weight: 800; padding: 3px 8px;
+  border-radius: 20px; background: #4CAF50; color: #fff; flex-shrink: 0;
+}
+.btn-link-email-cfg {
+  font-size: 12px; font-weight: 800; padding: 5px 12px;
+  border-radius: 20px; background: var(--p); color: #fff;
+  border: none; cursor: pointer; flex-shrink: 0;
+  transition: all .15s;
+}
+.btn-link-email-cfg:hover { background: #5a52e0; }

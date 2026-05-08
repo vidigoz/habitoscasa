@@ -41,6 +41,19 @@
       <input id="inp-family-name" class="field" type="text"
              placeholder="Ej: Familia García" maxlength="30" autocomplete="off">
       <button id="btn-setup-s1" class="btn-primary">Siguiente →</button>
+      <button id="btn-setup-recover" class="btn-ghost w-full" style="margin-top:10px;">📧 Ya tengo una familia — acceder con correo</button>
+    </div>
+
+    <!-- Step 1b: Recover by email -->
+    <div id="setup-s1b" class="setup-card hidden">
+      <div class="setup-hero-emoji">📧</div>
+      <h1 class="setup-h1">Recuperar familia</h1>
+      <p class="setup-p">Ingresa el correo Gmail con el que registraste tu familia</p>
+      <input id="inp-recover-email" class="field" type="email"
+             placeholder="tucorreo@gmail.com" autocomplete="email">
+      <p id="setup-recover-err" class="pin-error hidden" style="color:#e53935;font-size:13px;margin-top:6px;"></p>
+      <button id="btn-setup-recover-go" class="btn-primary" style="margin-top:8px;">Buscar mi familia 🔍</button>
+      <button id="btn-setup-recover-back" class="btn-ghost w-full" style="margin-top:8px;">← Volver</button>
     </div>
 
     <!-- Step 2: Create PIN -->
@@ -67,6 +80,18 @@
       <p id="setup-confirm-err" class="pin-error hidden">❌ Los PINs no coinciden</p>
       <div class="pin-pad" id="setup-pad-2"></div>
       <button id="btn-setup-back" class="btn-ghost w-full" style="margin-top:8px;">← Cambiar PIN</button>
+    </div>
+
+    <!-- Step 4: Link Gmail (optional) -->
+    <div id="setup-s4" class="setup-card hidden">
+      <div class="setup-hero-emoji">📧</div>
+      <h1 class="setup-h1">Guarda tu acceso</h1>
+      <p class="setup-p">Registra un correo Gmail para poder acceder a tus datos desde otro dispositivo</p>
+      <input id="inp-setup-email" class="field" type="email"
+             placeholder="tucorreo@gmail.com" autocomplete="email">
+      <p id="setup-email-err" class="pin-error hidden" style="color:#e53935;font-size:13px;margin-top:4px;"></p>
+      <button id="btn-setup-email-save" class="btn-primary" style="margin-top:8px;">Guardar correo 💾</button>
+      <button id="btn-setup-email-skip" class="btn-ghost w-full" style="margin-top:8px;">Omitir por ahora →</button>
     </div>
 
   </div>
@@ -336,6 +361,22 @@
     <div class="modal-actions">
       <button id="btn-week-confirm" class="btn-primary">Confirmar</button>
       <button id="btn-week-cancel" class="btn-ghost">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: vincular correo -->
+<div id="modal-link-email" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="font-size:40px;text-align:center;margin-bottom:8px;">📧</div>
+    <p class="modal-title">Vincular correo Gmail</p>
+    <p class="modal-sub">Podrás recuperar tus datos en otro dispositivo con este correo</p>
+    <input id="inp-link-email" class="field" type="email" placeholder="tucorreo@gmail.com" autocomplete="email">
+    <p id="link-email-err" class="pin-error hidden" style="color:#e53935;font-size:13px;margin-top:4px;text-align:left;"></p>
+    <div class="modal-actions">
+      <button id="btn-link-email-save" class="btn-primary">Vincular correo ✅</button>
+      <button id="btn-link-email-cancel" class="btn-ghost w-full">Cancelar</button>
     </div>
   </div>
 </div>

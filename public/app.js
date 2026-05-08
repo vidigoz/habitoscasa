@@ -45,6 +45,7 @@ const S = {
   // Family
   family_id: null,
   family_name: null,
+  family_email: null,
   // App data
   children: [],
   habits: [],
@@ -87,7 +88,7 @@ async function call(action, payload = {}) {
 // ── PERSISTENCE ──────────────────────────────────────────
 function saveLocal() {
   const snap = {
-    family_id: S.family_id, family_name: S.family_name,
+    family_id: S.family_id, family_name: S.family_name, family_email: S.family_email,
     children: S.children, habits: S.habits, completions: S.completions,
     premios: S.premios, history: S.history, settings: S.settings,
     currentChild: S.currentChild, currentWeek: S.currentWeek,
@@ -248,11 +249,15 @@ function hideSetupScreen() {
 }
 
 function showSetupStep(n) {
-  [1, 2, 3].forEach(i => {
-    document.getElementById(`setup-s${i}`).classList.toggle("hidden", i !== n);
+  ["1", "1b", "2", "3", "4"].forEach(i => {
+    const el = document.getElementById(`setup-s${i}`);
+    if (el) el.classList.toggle("hidden", String(i) !== String(n));
   });
   if (n === 1) {
     setTimeout(() => document.getElementById("inp-family-name")?.focus(), 100);
+  }
+  if (n === "1b") {
+    setTimeout(() => document.getElementById("inp-recover-email")?.focus(), 100);
   }
   if (n === 2) {
     buildPinPad("setup-pad-1");
@@ -279,6 +284,11 @@ function showSetupStep(n) {
       }
     });
   }
+  if (n === 4) {
+    document.getElementById("setup-email-err").classList.add("hidden");
+    document.getElementById("inp-setup-email").value = "";
+    setTimeout(() => document.getElementById("inp-setup-email")?.focus(), 100);
+  }
 }
 
 async function createFamily(pin) {
@@ -294,11 +304,100 @@ async function createFamily(pin) {
   setPinVerified();
   // Try to persist to DB in background (non-blocking)
   call("create_family", { id, name, pin, family_id: id }).catch(() => {});
+  // Go to email step (optional)
+  showSetupStep(4);
+}
+
+function finishSetup() {
   hideSetupScreen();
   document.getElementById("app").classList.remove("hidden");
   updateChatFabVisibility();
   renderAll();
-  toast(`🎉 ¡Familia "${name}" creada!`);
+  toast(`🎉 ¡Familia "${S.family_name}" creada!`);
+}
+
+async function recoverByEmail() {
+  const email = document.getElementById("inp-recover-email").value.trim().toLowerCase();
+  const errEl = document.getElementById("setup-recover-err");
+  errEl.classList.add("hidden");
+  if (!email.endsWith("@gmail.com")) {
+    errEl.textContent = "❌ Solo se aceptan correos @gmail.com";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  const btn = document.getElementById("btn-setup-recover-go");
+  btn.disabled = true;
+  btn.textContent = "Buscando…";
+  const r = await call("find_by_email", { email });
+  btn.disabled = false;
+  btn.textContent = "Buscar mi familia 🔍";
+  if (!r.ok) {
+    errEl.textContent = "❌ " + r.error;
+    errEl.classList.remove("hidden");
+    return;
+  }
+  // Found — restore family_id and load from DB
+  S.family_id = r.data.family_id;
+  S.family_name = r.data.name;
+  S.family_email = email;
+  saveLocal();
+  // Clear local PIN since we don't have it — user will need to verify from config
+  localStorage.removeItem("mh_pin");
+  clearPinVerified();
+  const loaded = await loadFromDB();
+  if (loaded) saveLocal();
+  hideSetupScreen();
+  document.getElementById("app").classList.remove("hidden");
+  updateChatFabVisibility();
+  renderAll();
+  toast(`🎉 ¡Familia "${S.family_name}" encontrada! Verifica tu PIN en Configuración.`);
+}
+
+async function linkEmailFromConfig() {
+  const email = document.getElementById("inp-link-email").value.trim().toLowerCase();
+  const errEl = document.getElementById("link-email-err");
+  errEl.classList.add("hidden");
+  if (!email.endsWith("@gmail.com")) {
+    errEl.textContent = "❌ Solo se aceptan correos @gmail.com";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  const btn = document.getElementById("btn-link-email-save");
+  btn.disabled = true;
+  btn.textContent = "Guardando…";
+  const r = await call("link_email", { email });
+  btn.disabled = false;
+  btn.textContent = "Vincular correo ✅";
+  if (!r.ok) {
+    errEl.textContent = "❌ " + r.error;
+    errEl.classList.remove("hidden");
+    return;
+  }
+  S.family_email = email;
+  saveLocal();
+  document.getElementById("modal-link-email").classList.add("hidden");
+  renderConfig();
+  toast("✅ Correo vinculado correctamente");
+}
+
+async function setupLinkEmail() {
+  const email = document.getElementById("inp-setup-email").value.trim().toLowerCase();
+  const errEl = document.getElementById("setup-email-err");
+  errEl.classList.add("hidden");
+  if (!email.endsWith("@gmail.com")) {
+    errEl.textContent = "❌ Solo se aceptan correos @gmail.com";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  const r = await call("link_email", { email });
+  if (!r.ok) {
+    errEl.textContent = "❌ " + r.error;
+    errEl.classList.remove("hidden");
+    return;
+  }
+  S.family_email = email;
+  saveLocal();
+  finishSetup();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -712,6 +811,18 @@ function renderConfig() {
       </div>`
     : "";
 
+  const emailStatus = S.family_email
+    ? `<div class="cfg-email-row cfg-email-linked">
+        <span class="cfg-email-icon">📧</span>
+        <span class="cfg-email-addr">${S.family_email}</span>
+        <span class="cfg-email-badge">Vinculado</span>
+       </div>`
+    : `<div class="cfg-email-row cfg-email-unlinked">
+        <span class="cfg-email-icon">📧</span>
+        <span class="cfg-email-hint">Sin correo vinculado — no podrás recuperar tus datos en otro dispositivo</span>
+        <button class="btn-link-email-cfg" id="btn-open-link-email">Vincular</button>
+       </div>`;
+
   cont.innerHTML = `
     <!-- Family card -->
     <div class="card" style="border-color:var(--p)">
@@ -723,6 +834,7 @@ function renderConfig() {
         </div>
         <button class="btn-lock-config" id="btn-lock-cfg" title="Bloquear config">🔒</button>
       </div>
+      ${emailStatus}
     </div>
 
     <!-- Perfiles -->
@@ -830,6 +942,15 @@ function renderConfig() {
 }
 
 function attachConfigListeners() {
+  // Vincular correo desde config
+  document.getElementById("btn-open-link-email")?.addEventListener("click", () => {
+    const modal = document.getElementById("modal-link-email");
+    document.getElementById("inp-link-email").value = "";
+    document.getElementById("link-email-err").classList.add("hidden");
+    modal.classList.remove("hidden");
+    setTimeout(() => document.getElementById("inp-link-email")?.focus(), 100);
+  });
+
   // Lock config
   document.getElementById("btn-lock-cfg")?.addEventListener("click", () => {
     clearPinVerified();
@@ -1578,6 +1699,30 @@ async function init() {
   });
   document.getElementById("btn-setup-back")?.addEventListener("click", () => showSetupStep(2));
 
+  // Setup: recover by email
+  document.getElementById("btn-setup-recover")?.addEventListener("click", () => showSetupStep("1b"));
+  document.getElementById("btn-setup-recover-back")?.addEventListener("click", () => showSetupStep(1));
+  document.getElementById("btn-setup-recover-go")?.addEventListener("click", recoverByEmail);
+  document.getElementById("inp-recover-email")?.addEventListener("keypress", e => {
+    if (e.key === "Enter") recoverByEmail();
+  });
+
+  // Setup: email step (step 4)
+  document.getElementById("btn-setup-email-save")?.addEventListener("click", setupLinkEmail);
+  document.getElementById("btn-setup-email-skip")?.addEventListener("click", finishSetup);
+  document.getElementById("inp-setup-email")?.addEventListener("keypress", e => {
+    if (e.key === "Enter") setupLinkEmail();
+  });
+
+  // Modal: link email from config
+  document.getElementById("btn-link-email-save")?.addEventListener("click", linkEmailFromConfig);
+  document.getElementById("btn-link-email-cancel")?.addEventListener("click", () => {
+    document.getElementById("modal-link-email").classList.add("hidden");
+  });
+  document.getElementById("inp-link-email")?.addEventListener("keypress", e => {
+    if (e.key === "Enter") linkEmailFromConfig();
+  });
+
   // ── LAUNCH LOGIC ──────────────────────────────────────
   // After splash, show setup or app
   setTimeout(() => {
@@ -1600,6 +1745,12 @@ async function init() {
         loadFromDB().then(async loaded => {
           if (loaded) {
             if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
+            // Sync email from DB if not stored locally
+            if (!S.family_email) {
+              call("get_family_email").then(r => {
+                if (r.ok && r.data.email) { S.family_email = r.data.email; saveLocal(); }
+              });
+            }
             saveLocal();
           }
           await checkAutoWeek();

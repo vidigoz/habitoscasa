@@ -33,6 +33,7 @@ async function initDb(sql) {
       pin TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
+  await sql`ALTER TABLE families ADD COLUMN IF NOT EXISTS email TEXT DEFAULT NULL`;
 
   // Children
   await sql`
@@ -125,7 +126,36 @@ export const handler = async (event) => {
         const rows = await sql`SELECT * FROM families WHERE id = ${family_id}`;
         if (!rows.length) return err("Familia no encontrada");
         if (rows[0].pin !== pin) return err("PIN incorrecto");
-        return ok({ name: rows[0].name });
+        return ok({ name: rows[0].name, email: rows[0].email || null });
+      }
+
+      case "link_email": {
+        const { family_id, email } = payload;
+        if (!family_id || !email) return err("family_id y email requeridos");
+        if (!email.toLowerCase().endsWith("@gmail.com")) return err("Solo se aceptan correos @gmail.com");
+        const existing = await sql`SELECT id FROM families WHERE email = ${email.toLowerCase()} AND id != ${family_id}`;
+        if (existing.length) return err("Este correo ya está asociado a otra familia");
+        const rows = await sql`SELECT id FROM families WHERE id = ${family_id}`;
+        if (!rows.length) return err("Familia no encontrada");
+        await sql`UPDATE families SET email = ${email.toLowerCase()} WHERE id = ${family_id}`;
+        return ok({ linked: true, email: email.toLowerCase() });
+      }
+
+      case "find_by_email": {
+        const { email } = payload;
+        if (!email) return err("email requerido");
+        if (!email.toLowerCase().endsWith("@gmail.com")) return err("Solo se aceptan correos @gmail.com");
+        const rows = await sql`SELECT id, name FROM families WHERE email = ${email.toLowerCase()}`;
+        if (!rows.length) return err("No se encontró ninguna familia con ese correo");
+        return ok({ family_id: rows[0].id, name: rows[0].name });
+      }
+
+      case "get_family_email": {
+        const { family_id } = payload;
+        if (!family_id) return err("family_id requerido");
+        const rows = await sql`SELECT email FROM families WHERE id = ${family_id}`;
+        if (!rows.length) return err("Familia no encontrada");
+        return ok({ email: rows[0].email || null });
       }
 
       // ── LOAD ALL (scoped to family) ───────────────────────────────
