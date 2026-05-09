@@ -1497,6 +1497,7 @@ function buildAIContext() {
   lines.push(`Tu rol es ayudar a los padres a gestionar hábitos, recompensas y analizar el desempeño de sus hijos.`);
   lines.push(`IMPORTANTE: Solo puedes hablar sobre los datos de esta familia. No des consejos ajenos a la app.`);
   lines.push(`Responde siempre en español, de forma amigable, concisa y motivadora.`);
+  lines.push(`FORMATO: Usa texto simple. Puedes usar **negritas** para resaltar datos clave y listas con "-" para enumerar. Evita headers (#, ##, ###) y separadores (---). Sé breve y directo.`);
   lines.push(``);
 
   if (S.family_name) lines.push(`Familia: ${S.family_name}`);
@@ -1552,10 +1553,23 @@ function buildAIContext() {
   return lines.join("\n");
 }
 
+function markdownToHtml(text) {
+  return text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, '<p style="font-weight:800;font-size:13px;margin:10px 0 4px;color:var(--p);">$1</p>')
+    .replace(/^## (.+)$/gm, '<p style="font-weight:800;font-size:14px;margin:10px 0 5px;">$1</p>')
+    .replace(/^# (.+)$/gm, '<p style="font-weight:800;font-size:15px;margin:8px 0 6px;">$1</p>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">')
+    .replace(/^[-•] (.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0;"><span>•</span><span>$1</span></div>')
+    .replace(/\n{2,}/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
 function chatAddBubble(role, text) {
   const msgs = document.getElementById("chat-messages");
   if (!msgs) return;
-  // Remove welcome screen on first real message
   const welcome = msgs.querySelector(".chat-welcome");
   if (welcome) welcome.style.display = "none";
 
@@ -1563,7 +1577,11 @@ function chatAddBubble(role, text) {
   div.className = `chat-msg chat-msg-${role}`;
   const bubble = document.createElement("div");
   bubble.className = "chat-bubble";
-  bubble.textContent = text;
+  if (role === "assistant") {
+    bubble.innerHTML = markdownToHtml(text);
+  } else {
+    bubble.textContent = text;
+  }
   div.appendChild(bubble);
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
