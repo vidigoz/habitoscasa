@@ -127,8 +127,11 @@ function clearPinVerified() {
 }
 
 function saveSecretQuestion(questionIdx, answer) {
+  const a = answer.trim().toLowerCase();
   const key = "mh_secret_" + S.family_id;
-  localStorage.setItem(key, JSON.stringify({ q: questionIdx, a: answer.trim().toLowerCase() }));
+  localStorage.setItem(key, JSON.stringify({ q: questionIdx, a }));
+  call("save_setting", { key: "secret_q", value: questionIdx }).catch(() => {});
+  call("save_setting", { key: "secret_a", value: a }).catch(() => {});
 }
 function getSecretQuestion() {
   const key = "mh_secret_" + S.family_id;
@@ -140,7 +143,9 @@ function verifySecretAnswer(answer) {
   return data.a === answer.trim().toLowerCase();
 }
 function changePin(newPin) {
-  localStorage.setItem("mh_pin", btoa(S.family_id + ":" + newPin));
+  const pinHash = btoa(S.family_id + ":" + newPin);
+  localStorage.setItem("mh_pin", pinHash);
+  call("save_setting", { key: "pin_hash", value: pinHash }).catch(() => {});
 }
 
 async function loadFromDB() {
@@ -154,9 +159,17 @@ async function loadFromDB() {
   S.premios = d.premios || [];
   S.history = d.history || [];
   if (d.settings) {
-    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider"].forEach(k => {
+    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a"].forEach(k => {
       if (d.settings[k] !== undefined) S.settings[k] = d.settings[k];
     });
+    // Sync PIN and secret question from DB to localStorage so all devices work
+    if (d.settings.pin_hash) {
+      localStorage.setItem("mh_pin", d.settings.pin_hash);
+    }
+    if (d.settings.secret_q !== undefined && d.settings.secret_a !== undefined) {
+      const key = "mh_secret_" + S.family_id;
+      localStorage.setItem(key, JSON.stringify({ q: d.settings.secret_q, a: d.settings.secret_a }));
+    }
   }
   return true;
 }
@@ -330,10 +343,12 @@ async function createFamily(pin) {
   S.family_name = name;
   saveLocal();
   // Store PIN locally (hashed with family id as salt) for offline verification
-  localStorage.setItem("mh_pin", btoa(id + ":" + pin));
+  const pinHash = btoa(id + ":" + pin);
+  localStorage.setItem("mh_pin", pinHash);
   setPinVerified();
-  // Try to persist to DB in background (non-blocking)
+  // Persist to DB
   call("create_family", { id, name, pin, family_id: id }).catch(() => {});
+  call("save_setting", { key: "pin_hash", value: pinHash, family_id: id }).catch(() => {});
   // Go to email step (optional)
   showSetupStep(4);
 }
