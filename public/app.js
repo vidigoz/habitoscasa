@@ -826,38 +826,13 @@ function buildSecurityCard() {
 function renderConfig() {
   const cont = document.getElementById("config-content");
 
-  // ── PIN LOCK SCREEN (if not verified) ──────────────────
+  // If PIN not verified, redirect back through showView so the modal fires
   if (!isPinVerified()) {
     const hasPinStored = !!localStorage.getItem("mh_pin");
     if (hasPinStored) {
-      cont.innerHTML = `
-        <div style="text-align:center;padding:20px 0 10px;">
-          <div style="font-size:48px;margin-bottom:8px;">🔐</div>
-          <p style="font-family:var(--ff-d);font-size:22px;font-weight:800;margin-bottom:6px;">Acceso de papás</p>
-          <p style="font-size:13px;color:var(--t2);margin-bottom:20px;">Ingresa el PIN para gestionar la configuración</p>
-          <div class="pin-dots" id="cfg-pin-dots">
-            <span class="pin-dot"></span><span class="pin-dot"></span>
-            <span class="pin-dot"></span><span class="pin-dot"></span>
-          </div>
-          <p id="cfg-pin-error" class="pin-error hidden" style="color:var(--bas-from);">❌ PIN incorrecto</p>
-          <div class="pin-pad" id="cfg-pin-pad"></div>
-        </div>`;
-      buildPinPad("cfg-pin-pad");
-      initPin(document.getElementById("cfg-pin-dots"), (pin) => {
-        if (verifyPin(pin)) {
-          setPinVerified();
-          renderConfig();
-        } else {
-          const errEl = document.getElementById("cfg-pin-error");
-          errEl && errEl.classList.remove("hidden");
-          const dots = document.getElementById("cfg-pin-dots");
-          if (dots) { dots.style.animation = "none"; dots.offsetHeight; dots.style.animation = "shake .4s ease-out"; }
-          setTimeout(() => renderConfig(), 900);
-        }
-      });
+      showView("config");
       return;
     }
-    // No PIN stored yet — treat as open (first-time or recovery)
     setPinVerified();
   }
 
