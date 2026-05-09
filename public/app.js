@@ -65,7 +65,7 @@ const S = {
   completions: [],
   premios: [],
   history: [],
-  settings: { label_basicos: "Básicos", label_extras: "Extras", label_especiales: "Especiales" },
+  settings: { label_basicos: "Básicos", label_extras: "Extras", label_especiales: "Especiales", ai_key: "", ai_provider: "" },
   // Navigation
   currentChild: null,
   currentCat: null,
@@ -154,7 +154,7 @@ async function loadFromDB() {
   S.premios = d.premios || [];
   S.history = d.history || [];
   if (d.settings) {
-    ["label_basicos", "label_extras", "label_especiales"].forEach(k => {
+    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider"].forEach(k => {
       if (d.settings[k] !== undefined) S.settings[k] = d.settings[k];
     });
   }
@@ -1472,10 +1472,18 @@ const AI_API = "/api/ai";
 let _chatHistory = [];
 let _chatOpen = false;
 
-function getAiProvider() { return localStorage.getItem("mh_ai_provider") || "openai"; }
-function getAiKey() { return localStorage.getItem("mh_ai_key") || ""; }
-function setAiProvider(p) { localStorage.setItem("mh_ai_provider", p); }
-function setAiKey(k) { localStorage.setItem("mh_ai_key", k); }
+function getAiProvider() { return S.settings.ai_provider || localStorage.getItem("mh_ai_provider") || "openai"; }
+function getAiKey() { return S.settings.ai_key || localStorage.getItem("mh_ai_key") || ""; }
+function setAiProvider(p) {
+  S.settings.ai_provider = p;
+  localStorage.setItem("mh_ai_provider", p);
+  call("save_setting", { key: "ai_provider", value: p }).catch(() => {});
+}
+function setAiKey(k) {
+  S.settings.ai_key = k;
+  localStorage.setItem("mh_ai_key", k);
+  call("save_setting", { key: "ai_key", value: k }).catch(() => {});
+}
 
 function updateChatFabVisibility() {
   const fab = document.getElementById("btn-chat-open");
@@ -1671,7 +1679,7 @@ function buildAiConfigCard() {
   return `
     <div class="card" id="ai-config-card">
       <h3 class="card-title">🤖 Asistente IA</h3>
-      <p class="card-desc" style="margin-bottom:14px;">Conecta tu propia API key para activar el asistente. Tu key se guarda solo en este dispositivo.</p>
+      <p class="card-desc" style="margin-bottom:14px;">Conecta tu propia API key para activar el asistente. Tu key se guarda en la base de datos de tu familia.</p>
       <div class="ai-provider-grid">
         ${providers.map(p =>
           `<button class="ai-provider-btn${provider === p.id ? " active" : ""}" data-ai-provider="${p.id}">
@@ -1711,14 +1719,17 @@ function attachAiConfigListeners() {
   });
 
   // Save key
-  document.getElementById("btn-ai-save")?.addEventListener("click", () => {
+  document.getElementById("btn-ai-save")?.addEventListener("click", async () => {
     const key = document.getElementById("inp-ai-key").value.trim();
+    const badge = document.getElementById("ai-status-badge");
+    badge.textContent = "Guardando...";
+    badge.className = "ai-status-badge";
+    badge.classList.remove("hidden");
+    setAiProvider(getAiProvider());
     setAiKey(key);
     updateChatFabVisibility();
-    const badge = document.getElementById("ai-status-badge");
-    badge.textContent = key ? "✅ API key guardada" : "⚠️ Key borrada";
-    badge.className = "ai-status-badge " + (key ? "ok" : "warn");
-    badge.classList.remove("hidden");
+    badge.textContent = key ? "✅ API key guardada en la nube" : "⚠️ Key borrada";
+    badge.className = "ai-status-badge " + (key ? "ok" : "none");
     setTimeout(() => badge.classList.add("hidden"), 2500);
     toast(key ? "✅ API key guardada" : "⚠️ Key eliminada");
   });
