@@ -158,6 +158,9 @@ async function loadFromDB() {
   S.completions = d.completions || [];
   S.premios = d.premios || [];
   S.history = d.history || [];
+  // Always trust the real current week, don't let stale localStorage override it
+  S.currentWeek = getWeekStart();
+  S.currentWeekLabel = getWeekLabel();
   if (d.settings) {
     ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a"].forEach(k => {
       if (d.settings[k] !== undefined) S.settings[k] = d.settings[k];
@@ -1408,7 +1411,17 @@ async function archiveWeek(oldWeek, oldLabel, newLabel) {
 async function checkAutoWeek() {
   const todayWeek = getWeekStart();
   if (!S.currentWeek || S.currentWeek === todayWeek) return;
-  // Week changed — auto-archive silently
+  // If DB already has completions for the current week, just update the week
+  // pointer without archiving — avoids wiping progress after an app update
+  const hasCurrentWeekData = S.completions.some(c => c.week_start === todayWeek);
+  if (hasCurrentWeekData) {
+    S.currentWeek = todayWeek;
+    S.currentWeekLabel = getWeekLabel();
+    saveLocal();
+    renderAll();
+    return;
+  }
+  // Genuine week rollover — archive old week and start fresh
   await archiveWeek(S.currentWeek, S.currentWeekLabel, getWeekLabel());
   saveLocal();
   renderAll();
