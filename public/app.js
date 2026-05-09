@@ -29,12 +29,19 @@ function getChildAvatar(child, idx) { return child.avatar || AVATARS[idx % AVATA
 // ── UTILS ────────────────────────────────────────────────
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
 
+function toLocalDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function getWeekStart(d = new Date()) {
   const date = new Date(d);
   const day = date.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   date.setDate(date.getDate() + diff);
-  return date.toISOString().split("T")[0];
+  return toLocalDateStr(date);
 }
 function getWeekLabel(d = new Date()) {
   const start = new Date(getWeekStart(d));
