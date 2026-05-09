@@ -450,7 +450,6 @@ function renderAll() {
   renderProfileRow();
   renderHomeBars();
   renderCatCards();
-  renderBottomNav();
   renderPremios();
   renderDashboard();
   renderHistorial();
@@ -677,9 +676,6 @@ function renderHistorial() {
   }).join("");
 }
 
-function renderBottomNav() {
-  document.querySelectorAll(".bnav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === S.currentView));
-}
 
 // ══════════════════════════════════════════════════════════
 //  CONFIG RENDER (parents only)
@@ -1038,7 +1034,6 @@ function doShowView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById(`view-${name}`).classList.add("active");
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === name));
-  renderBottomNav();
   closeSidebar();
   if (name === "premios") renderPremios();
   if (name === "dashboard") renderDashboard();
@@ -1614,7 +1609,7 @@ async function init() {
   document.getElementById("sb-overlay").addEventListener("click", closeSidebar);
 
   // Nav buttons
-  document.querySelectorAll(".nav-btn[data-view], .bnav-btn[data-view]").forEach(b => {
+  document.querySelectorAll(".nav-btn[data-view]").forEach(b => {
     b.addEventListener("click", () => showView(b.dataset.view));
   });
 
