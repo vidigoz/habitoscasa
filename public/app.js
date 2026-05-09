@@ -174,11 +174,14 @@ async function loadFromDB() {
 
   // For completions: prefer DB data, but never replace current-week local
   // completions with an empty array (guards against race conditions / DB hiccups)
-  const dbCompletions = d.completions || [];
+  // Normalize week_start from DB — PostgreSQL DATE columns come back as full ISO
+  // timestamps ("2026-05-05T00:00:00.000Z") but app uses plain "YYYY-MM-DD" strings.
+  const dbCompletions = (d.completions || []).map(c => ({
+    ...c,
+    week_start: c.week_start ? c.week_start.slice(0, 10) : c.week_start
+  }));
   const localCurrentWeek = S.completions.filter(c => c.week_start === todayWeek);
-  console.log("[MH] DB completions:", dbCompletions.length, "| local this week:", localCurrentWeek.length, "| todayWeek:", todayWeek);
   if (dbCompletions.length > 0) {
-    console.log("[MH] sample comp week_start:", dbCompletions[0].week_start);
     S.completions = dbCompletions;
   } else if (localCurrentWeek.length > 0) {
     S.completions = localCurrentWeek;
@@ -1960,7 +1963,6 @@ async function init() {
 
         // Load fresh data from DB then check for auto week-rollover
         loadFromDB().then(async loaded => {
-          console.log("[MH] loadFromDB result:", loaded, "completions:", S.completions.length, "week:", S.currentWeek);
           if (loaded) {
             if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
             // Sync email from DB if not stored locally
