@@ -285,17 +285,17 @@
     <!-- ── CONFIG (parents only, PIN protected) ─────── -->
     <section id="view-config" class="view">
       <!-- PIN lock overlay — covers config when locked -->
-      <div id="config-lock-overlay" class="hidden" style="position:absolute;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;min-height:100%;">
-        <div style="font-size:56px;margin-bottom:12px;">🔐</div>
-        <p style="font-family:var(--ff-d);font-size:24px;font-weight:800;margin-bottom:6px;">Acceso de papás</p>
-        <p style="font-size:14px;color:var(--t2);margin-bottom:24px;text-align:center;">Ingresa el PIN para gestionar la configuración</p>
-        <div class="pin-dots" id="lock-pin-dots">
+      <div id="config-lock-overlay" class="hidden" style="position:fixed;inset:0;z-index:600;background:linear-gradient(145deg,#4A3FCC 0%,#6C63FF 55%,#9B8FFF 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+        <div style="font-size:52px;margin-bottom:10px;">🔐</div>
+        <p style="font-family:var(--ff-d);font-size:26px;font-weight:800;color:#fff;margin-bottom:4px;">Acceso de papás</p>
+        <p style="font-size:14px;color:rgba(255,255,255,.8);margin-bottom:20px;text-align:center;">Ingresa el PIN</p>
+        <div class="pin-dots" id="lock-pin-dots" style="margin-bottom:16px;">
           <span class="pin-dot"></span><span class="pin-dot"></span>
           <span class="pin-dot"></span><span class="pin-dot"></span>
         </div>
-        <p id="lock-pin-error" class="pin-error hidden" style="color:var(--bas-from);text-align:center;margin:8px 0;">❌ PIN incorrecto</p>
-        <div class="pin-pad" id="lock-pin-pad" style="max-width:280px;width:100%;margin-top:8px;"></div>
-        <button id="lock-pin-forgot" class="btn-ghost btn-sm" style="margin-top:16px;font-size:13px;">¿Olvidaste el PIN?</button>
+        <p id="lock-pin-error" class="pin-error hidden" style="color:#FFD0D0;text-align:center;margin-bottom:8px;">❌ PIN incorrecto</p>
+        <div class="pin-pad" id="lock-pin-pad" style="max-width:260px;width:100%;"></div>
+        <button id="lock-pin-forgot" style="margin-top:20px;background:none;border:none;color:rgba(255,255,255,.75);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--ff-b);">¿Olvidaste el PIN?</button>
       </div>
       <div id="config-content"></div>
     </section>
