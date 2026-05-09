@@ -176,10 +176,11 @@ async function loadFromDB() {
   // completions with an empty array (guards against race conditions / DB hiccups)
   const dbCompletions = d.completions || [];
   const localCurrentWeek = S.completions.filter(c => c.week_start === todayWeek);
+  console.log("[MH] DB completions:", dbCompletions.length, "| local this week:", localCurrentWeek.length, "| todayWeek:", todayWeek);
   if (dbCompletions.length > 0) {
+    console.log("[MH] sample comp week_start:", dbCompletions[0].week_start);
     S.completions = dbCompletions;
   } else if (localCurrentWeek.length > 0) {
-    // DB returned nothing but we have local progress this week — keep it
     S.completions = localCurrentWeek;
   } else {
     S.completions = [];
@@ -1959,6 +1960,7 @@ async function init() {
 
         // Load fresh data from DB then check for auto week-rollover
         loadFromDB().then(async loaded => {
+          console.log("[MH] loadFromDB result:", loaded, "completions:", S.completions.length, "week:", S.currentWeek);
           if (loaded) {
             if (!S.currentChild && S.children.length) S.currentChild = S.children[0].id;
             // Sync email from DB if not stored locally
