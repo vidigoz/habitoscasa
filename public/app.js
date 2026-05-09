@@ -120,6 +120,10 @@ function loadLocal() {
   const raw = localStorage.getItem("mh_state");
   if (!raw) return;
   try { Object.assign(S, JSON.parse(raw)); } catch {}
+  // Always use real current week — never let a stale localStorage date
+  // cause completions to be saved/read with the wrong week_start
+  S.currentWeek = getWeekStart();
+  S.currentWeekLabel = getWeekLabel();
 }
 
 // PIN verified is stored in sessionStorage (cleared when tab/browser closes)
