@@ -1166,7 +1166,8 @@ function attachConfigListeners() {
 // ── CONFIG LOCK OVERLAY ───────────────────────────────────
 function lockConfig() {
   clearPinVerified();
-  openPinModal(() => renderConfig());
+  S.currentView = "home";
+  doShowView("home");
 }
 
 // ── NAVIGATION ────────────────────────────────────────────
