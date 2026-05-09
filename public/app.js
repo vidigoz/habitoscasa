@@ -826,11 +826,6 @@ function buildSecurityCard() {
 function renderConfig() {
   const cont = document.getElementById("config-content");
 
-  // If PIN not verified, don't render — showView("config") is the only entry point
-  if (!isPinVerified()) {
-    if (!!localStorage.getItem("mh_pin")) return;
-    setPinVerified();
-  }
 
   // ── NO FAMILY SET → show setup prompt ─────────────────
   if (!S.family_id) {
@@ -1066,9 +1061,7 @@ function attachConfigListeners() {
 
   // Lock config
   document.getElementById("btn-lock-cfg")?.addEventListener("click", () => {
-    clearPinVerified();
-    S.currentView = "home";
-    doShowView("home");
+    lockConfig();
     toast("🔒 Config bloqueada");
   });
 
@@ -1155,23 +1148,57 @@ function attachConfigListeners() {
     document.getElementById("clear-confirm").classList.add("hidden"));
 }
 
+// ── CONFIG LOCK OVERLAY ───────────────────────────────────
+function showConfigLock() {
+  const overlay = document.getElementById("config-lock-overlay");
+  const dotsEl  = document.getElementById("lock-pin-dots");
+  const errEl   = document.getElementById("lock-pin-error");
+  if (!overlay) return;
+
+  errEl.classList.add("hidden");
+  overlay.classList.remove("hidden");
+
+  function attempt() {
+    dotsEl.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("filled"));
+    buildPinPad("lock-pin-pad");
+    initPin(dotsEl, (pin) => {
+      if (verifyPin(pin)) {
+        setPinVerified();
+        overlay.classList.add("hidden");
+      } else {
+        errEl.classList.remove("hidden");
+        dotsEl.style.animation = "none";
+        dotsEl.offsetHeight;
+        dotsEl.style.animation = "shake .4s ease-out";
+        setTimeout(() => { errEl.classList.add("hidden"); attempt(); }, 900);
+      }
+    });
+  }
+  attempt();
+
+  document.getElementById("lock-pin-forgot").onclick = () => {
+    openRecoverPinModal();
+  };
+}
+
+function lockConfig() {
+  clearPinVerified();
+  const overlay = document.getElementById("config-lock-overlay");
+  if (overlay) {
+    showConfigLock();
+  }
+}
+
 // ── NAVIGATION ────────────────────────────────────────────
 function showView(name) {
-  if (name === "config" && !isPinVerified()) {
-    const hasPinStored = !!localStorage.getItem("mh_pin");
-    if (hasPinStored) {
-      openPinModal(() => {
-        S.currentView = "config";
-        doShowView("config");
-        renderConfig();
-      });
-      return;
-    }
-    setPinVerified();
-  }
   S.currentView = name;
   doShowView(name);
-  if (name === "config") renderConfig();
+  if (name === "config") {
+    renderConfig();
+    if (!isPinVerified() && !!localStorage.getItem("mh_pin")) {
+      showConfigLock();
+    }
+  }
 }
 
 function doShowView(name) {
