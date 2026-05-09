@@ -1164,44 +1164,9 @@ function attachConfigListeners() {
 }
 
 // ── CONFIG LOCK OVERLAY ───────────────────────────────────
-function showConfigLock() {
-  const overlay = document.getElementById("config-lock-overlay");
-  const dotsEl  = document.getElementById("lock-pin-dots");
-  const errEl   = document.getElementById("lock-pin-error");
-  if (!overlay) return;
-
-  errEl.classList.add("hidden");
-  overlay.classList.remove("hidden");
-
-  function attempt() {
-    dotsEl.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("filled"));
-    buildPinPad("lock-pin-pad");
-    initPin(dotsEl, (pin) => {
-      if (verifyPin(pin)) {
-        setPinVerified();
-        overlay.classList.add("hidden");
-      } else {
-        errEl.classList.remove("hidden");
-        dotsEl.style.animation = "none";
-        dotsEl.offsetHeight;
-        dotsEl.style.animation = "shake .4s ease-out";
-        setTimeout(() => { errEl.classList.add("hidden"); attempt(); }, 900);
-      }
-    });
-  }
-  attempt();
-
-  document.getElementById("lock-pin-forgot").onclick = () => {
-    openRecoverPinModal();
-  };
-}
-
 function lockConfig() {
   clearPinVerified();
-  const overlay = document.getElementById("config-lock-overlay");
-  if (overlay) {
-    showConfigLock();
-  }
+  openPinModal(() => renderConfig());
 }
 
 // ── NAVIGATION ────────────────────────────────────────────
@@ -1209,9 +1174,10 @@ function showView(name) {
   S.currentView = name;
   doShowView(name);
   if (name === "config") {
-    renderConfig();
     if (!isPinVerified() && !!localStorage.getItem("mh_pin")) {
-      showConfigLock();
+      openPinModal(() => renderConfig());
+    } else {
+      renderConfig();
     }
   }
 }

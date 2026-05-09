@@ -196,7 +196,7 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 @media(min-width:1024px){ .main { max-width: 900px; padding: 24px 32px; } }
 
 /* ─── VIEWS ──────────────────────────────────────────── */
-.view { display: none; animation: fadeUp .24s ease-out; position: relative; }
+.view { display: none; animation: fadeUp .24s ease-out; }
 .view.active { display: block; }
 
 /* ─── SECTION LABEL ──────────────────────────────────── */
