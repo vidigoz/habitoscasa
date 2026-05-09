@@ -10,6 +10,19 @@ const API = "/api/api";
 const AVATARS = ["🦁","🐯","🦊","🐸","🐧","🦋","🦄","🐼","🦖","🚀","🌟","🎮","🎨","🎵","🏆","⚽","🎯","🌈"];
 const PROFILE_COLORS = ["#FF6B9D","#6C63FF","#11998E","#F7971E","#E040FB","#2196F3","#E53935","#00BCD4","#FF5722","#4CAF50"];
 
+const SECRET_QUESTIONS = [
+  "¿Cuál es el nombre de tu primera mascota?",
+  "¿En qué ciudad naciste?",
+  "¿Cuál es el segundo nombre de tu mamá?",
+  "¿Cuál es el nombre de tu escuela primaria?",
+  "¿Cuál era tu apodo de niño/a?",
+  "¿Cuál es tu película favorita de la infancia?",
+  "¿Cuál es el nombre de tu mejor amigo/a de la infancia?",
+  "¿Cuál es el platillo favorito de tu familia?",
+  "¿Cómo se llama la calle donde creciste?",
+  "¿Cuál fue tu primer trabajo o chamba?"
+];
+
 function getChildColor(idx) { return PROFILE_COLORS[idx % PROFILE_COLORS.length]; }
 function getChildAvatar(child, idx) { return child.avatar || AVATARS[idx % AVATARS.length]; }
 
@@ -111,6 +124,23 @@ function setPinVerified() {
 }
 function clearPinVerified() {
   sessionStorage.removeItem("mh_pin_ok");
+}
+
+function saveSecretQuestion(questionIdx, answer) {
+  const key = "mh_secret_" + S.family_id;
+  localStorage.setItem(key, JSON.stringify({ q: questionIdx, a: answer.trim().toLowerCase() }));
+}
+function getSecretQuestion() {
+  const key = "mh_secret_" + S.family_id;
+  try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+}
+function verifySecretAnswer(answer) {
+  const data = getSecretQuestion();
+  if (!data) return false;
+  return data.a === answer.trim().toLowerCase();
+}
+function changePin(newPin) {
+  localStorage.setItem("mh_pin", btoa(S.family_id + ":" + newPin));
 }
 
 async function loadFromDB() {
@@ -440,6 +470,95 @@ function openPinModal(onSuccess) {
   buildPinPad("modal-pin-pad");
   initPin(dotsEl, tryPin);
   modal.classList.remove("hidden");
+
+  const forgotBtn = document.getElementById("btn-pin-forgot");
+  if (forgotBtn) forgotBtn.onclick = () => {
+    modal.classList.add("hidden");
+    openRecoverPinModal();
+  };
+}
+
+function openRecoverPinModal() {
+  const secret = getSecretQuestion();
+  const modal = document.getElementById("modal-recover-pin");
+  const errEl = document.getElementById("recover-answer-err");
+  const questionEl = document.getElementById("recover-question-text");
+
+  if (!secret) {
+    toast("⚠️ No hay pregunta secreta configurada");
+    return;
+  }
+
+  questionEl.textContent = SECRET_QUESTIONS[secret.q];
+  document.getElementById("inp-recover-answer").value = "";
+  errEl.classList.add("hidden");
+  modal.classList.remove("hidden");
+  setTimeout(() => document.getElementById("inp-recover-answer")?.focus(), 100);
+
+  document.getElementById("btn-recover-verify").onclick = () => {
+    const answer = document.getElementById("inp-recover-answer").value;
+    if (verifySecretAnswer(answer)) {
+      modal.classList.add("hidden");
+      setPinVerified();
+      openChangePinModal(true);
+    } else {
+      errEl.classList.remove("hidden");
+      setTimeout(() => errEl.classList.add("hidden"), 1500);
+    }
+  };
+
+  document.getElementById("btn-recover-cancel").onclick = () => {
+    modal.classList.add("hidden");
+  };
+
+  document.getElementById("inp-recover-answer").onkeypress = (e) => {
+    if (e.key === "Enter") document.getElementById("btn-recover-verify").click();
+  };
+}
+
+function openChangePinModal(afterRecovery = false) {
+  const modal = document.getElementById("modal-change-pin");
+  const errEl = document.getElementById("change-pin-error");
+  const stepLabel = document.getElementById("change-pin-step-label");
+  const dotsEl = document.getElementById("change-pin-dots-1");
+
+  errEl.classList.add("hidden");
+  modal.classList.remove("hidden");
+
+  function startFirstStep() {
+    stepLabel.textContent = "Ingresa el nuevo PIN";
+    dotsEl.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("filled"));
+    buildPinPad("change-pin-pad");
+    initPin(dotsEl, (pin) => {
+      stepLabel.textContent = "Confirma el nuevo PIN";
+      dotsEl.querySelectorAll(".pin-dot").forEach(d => d.classList.remove("filled"));
+      buildPinPad("change-pin-pad");
+      initPin(dotsEl, (pin2) => {
+        if (pin2 === pin) {
+          changePin(pin);
+          modal.classList.add("hidden");
+          toast("✅ PIN cambiado con éxito");
+          if (afterRecovery) {
+            S.currentView = "config";
+            doShowView("config");
+            renderConfig();
+          }
+        } else {
+          errEl.classList.remove("hidden");
+          setTimeout(() => {
+            errEl.classList.add("hidden");
+            startFirstStep();
+          }, 900);
+        }
+      });
+    });
+  }
+
+  startFirstStep();
+
+  document.getElementById("btn-change-pin-cancel").onclick = () => {
+    modal.classList.add("hidden");
+  };
 }
 
 // ══════════════════════════════════════════════════════════
@@ -678,6 +797,30 @@ function renderHistorial() {
 
 
 // ══════════════════════════════════════════════════════════
+//  SECURITY CARD
+// ══════════════════════════════════════════════════════════
+function buildSecurityCard() {
+  const secret = getSecretQuestion();
+  const hasQuestion = !!secret;
+  const questionText = hasQuestion ? SECRET_QUESTIONS[secret.q] : "Sin pregunta configurada";
+  const optionsHTML = SECRET_QUESTIONS.map((q, i) =>
+    `<option value="${i}"${hasQuestion && secret.q === i ? " selected" : ""}>${q}</option>`
+  ).join("");
+  return `
+    <div class="card">
+      <h3 class="card-title">🔐 Seguridad</h3>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button id="btn-cfg-change-pin" class="btn-ghost btn-sm" style="flex:1;">🔑 Cambiar PIN</button>
+      </div>
+      <p class="field-label">Pregunta secreta ${hasQuestion ? "✅" : "⚠️ No configurada"}</p>
+      ${hasQuestion ? `<p style="font-size:12px;color:var(--t2);margin-bottom:10px;font-style:italic;">"${questionText}"</p>` : ""}
+      <select id="cfg-secret-question" class="field" style="margin-bottom:8px;">${optionsHTML}</select>
+      <input id="cfg-secret-answer" class="field" type="text" placeholder="Tu respuesta (se guarda en minúsculas)" autocomplete="off">
+      <button id="btn-cfg-save-secret" class="btn-primary btn-sm">Guardar pregunta secreta</button>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
 //  CONFIG RENDER (parents only)
 // ══════════════════════════════════════════════════════════
 function renderConfig() {
@@ -833,6 +976,9 @@ function renderConfig() {
       ${emailStatus}
     </div>
 
+    <!-- Seguridad -->
+    ${buildSecurityCard()}
+
     <!-- Perfiles -->
     <div class="card">
       <h3 class="card-title">👦 Perfiles de niños</h3>
@@ -954,6 +1100,20 @@ function attachConfigListeners() {
     toast("🔒 Config bloqueada");
   });
 
+  // Change PIN
+  document.getElementById("btn-cfg-change-pin")?.addEventListener("click", openChangePinModal);
+
+  // Save secret question
+  document.getElementById("btn-cfg-save-secret")?.addEventListener("click", () => {
+    const qIdx = parseInt(document.getElementById("cfg-secret-question").value);
+    const answer = document.getElementById("cfg-secret-answer").value.trim();
+    if (!answer) { toast("✏️ Escribe tu respuesta"); return; }
+    saveSecretQuestion(qIdx, answer);
+    document.getElementById("cfg-secret-answer").value = "";
+    toast("✅ Pregunta secreta guardada");
+    renderConfig();
+  });
+
   // Add child
   document.getElementById("btn-cfg-add-child")?.addEventListener("click", openAddProfileModal);
 
@@ -1025,6 +1185,18 @@ function attachConfigListeners() {
 
 // ── NAVIGATION ────────────────────────────────────────────
 function showView(name) {
+  if (name === "config" && !isPinVerified()) {
+    const hasPinStored = !!localStorage.getItem("mh_pin");
+    if (hasPinStored) {
+      openPinModal(() => {
+        S.currentView = "config";
+        doShowView("config");
+        renderConfig();
+      });
+      return;
+    }
+    setPinVerified();
+  }
   S.currentView = name;
   doShowView(name);
   if (name === "config") renderConfig();

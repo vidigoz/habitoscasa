@@ -307,7 +307,40 @@
     </div>
     <p id="modal-pin-error" class="pin-error hidden">❌ PIN incorrecto</p>
     <div class="pin-pad" id="modal-pin-pad"></div>
-    <button id="btn-pin-cancel" class="btn-ghost w-full" style="margin-top:10px;">Cancelar</button>
+    <button id="btn-pin-forgot" class="btn-ghost w-full" style="margin-top:8px;font-size:13px;">¿Olvidaste el PIN?</button>
+    <button id="btn-pin-cancel" class="btn-ghost w-full" style="margin-top:6px;">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL: recover PIN by secret question -->
+<div id="modal-recover-pin" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="pin-modal-icon">🔑</div>
+    <p class="modal-title">Recuperar PIN</p>
+    <p class="modal-sub" id="recover-question-text">Responde tu pregunta secreta</p>
+    <input id="inp-recover-answer" class="field" type="text" placeholder="Tu respuesta..." autocomplete="off">
+    <p id="recover-answer-err" class="pin-error hidden" style="color:var(--bas-from);text-align:center;margin-bottom:8px;">❌ Respuesta incorrecta</p>
+    <button id="btn-recover-verify" class="btn-primary w-full">Verificar</button>
+    <button id="btn-recover-cancel" class="btn-ghost w-full" style="margin-top:8px;">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL: change PIN -->
+<div id="modal-change-pin" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="pin-modal-icon">🔏</div>
+    <p class="modal-title" id="change-pin-title">Nuevo PIN</p>
+    <p class="modal-sub" id="change-pin-sub">Ingresa tu nuevo PIN de 4 dígitos</p>
+    <div class="pin-dots" id="change-pin-dots-1">
+      <span class="pin-dot"></span><span class="pin-dot"></span>
+      <span class="pin-dot"></span><span class="pin-dot"></span>
+    </div>
+    <p id="change-pin-step-label" style="font-size:12px;color:var(--t3);text-align:center;margin-bottom:8px;">Ingresa el nuevo PIN</p>
+    <p id="change-pin-error" class="pin-error hidden" style="color:var(--bas-from);">❌ Los PINs no coinciden</p>
+    <div class="pin-pad" id="change-pin-pad"></div>
+    <button id="btn-change-pin-cancel" class="btn-ghost w-full" style="margin-top:10px;">Cancelar</button>
   </div>
 </div>
 
