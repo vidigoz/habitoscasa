@@ -157,16 +157,31 @@ function changePin(newPin) {
 
 async function loadFromDB() {
   if (!S.family_id) return false;
-  const r = await call("load");
+  let r;
+  try { r = await call("load"); } catch { return false; }
   if (!r.ok) return false;
   const d = r.data;
+  const todayWeek = getWeekStart();
+
   S.children = d.children || [];
-  S.habits = d.habits || [];
-  S.completions = d.completions || [];
-  S.premios = d.premios || [];
-  S.history = d.history || [];
-  // Always trust the real current week, don't let stale localStorage override it
-  S.currentWeek = getWeekStart();
+  S.habits   = d.habits   || [];
+  S.premios  = d.premios  || [];
+  S.history  = d.history  || [];
+
+  // For completions: prefer DB data, but never replace current-week local
+  // completions with an empty array (guards against race conditions / DB hiccups)
+  const dbCompletions = d.completions || [];
+  const localCurrentWeek = S.completions.filter(c => c.week_start === todayWeek);
+  if (dbCompletions.length > 0) {
+    S.completions = dbCompletions;
+  } else if (localCurrentWeek.length > 0) {
+    // DB returned nothing but we have local progress this week — keep it
+    S.completions = localCurrentWeek;
+  } else {
+    S.completions = [];
+  }
+
+  S.currentWeek = todayWeek;
   S.currentWeekLabel = getWeekLabel();
   if (d.settings) {
     ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a"].forEach(k => {
