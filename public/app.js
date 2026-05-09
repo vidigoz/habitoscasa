@@ -826,13 +826,9 @@ function buildSecurityCard() {
 function renderConfig() {
   const cont = document.getElementById("config-content");
 
-  // If PIN not verified, redirect back through showView so the modal fires
+  // If PIN not verified, don't render — showView("config") is the only entry point
   if (!isPinVerified()) {
-    const hasPinStored = !!localStorage.getItem("mh_pin");
-    if (hasPinStored) {
-      showView("config");
-      return;
-    }
+    if (!!localStorage.getItem("mh_pin")) return;
     setPinVerified();
   }
 
@@ -1071,7 +1067,8 @@ function attachConfigListeners() {
   // Lock config
   document.getElementById("btn-lock-cfg")?.addEventListener("click", () => {
     clearPinVerified();
-    showView("home");
+    S.currentView = "home";
+    doShowView("home");
     toast("🔒 Config bloqueada");
   });
 
