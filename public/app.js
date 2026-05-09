@@ -1844,13 +1844,13 @@ async function init() {
   });
 
   // Nueva semana modal
-  document.getElementById("btn-new-week").addEventListener("click", () => {
+  document.getElementById("btn-new-week")?.addEventListener("click", () => {
     document.getElementById("inp-week-title").value = getWeekLabel();
     document.getElementById("modal-week").classList.remove("hidden");
     closeSidebar();
   });
-  document.getElementById("btn-week-confirm").addEventListener("click", startNewWeek);
-  document.getElementById("btn-week-cancel").addEventListener("click", () =>
+  document.getElementById("btn-week-confirm")?.addEventListener("click", startNewWeek);
+  document.getElementById("btn-week-cancel")?.addEventListener("click", () =>
     document.getElementById("modal-week").classList.add("hidden"));
   document.getElementById("inp-week-title").addEventListener("keypress", e => { if (e.key === "Enter") startNewWeek(); });
 
