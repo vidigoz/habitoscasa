@@ -736,7 +736,9 @@ function buildHabitCard(h) {
   const done = countDone(h);
   const complete = isHabitComplete(h);
   const iconBlock = h.icon
-    ? `<div class="hc-icon">${h.icon}</div>`
+    ? h.icon.startsWith("data:")
+      ? `<div class="hc-icon"><img class="hc-icon-img" src="${h.icon}" alt=""></div>`
+      : `<div class="hc-icon">${h.icon}</div>`
     : "";
   const nameBlock = `<div class="hc-text"><div class="hc-name">${h.name}</div><div class="hc-meta">${typeLabel}${ptsLabel}</div></div>`;
   if (h.type === "semanal") {
@@ -975,15 +977,22 @@ function renderConfig() {
     ? S.habits.filter(h => h.child_id === S.configChildId && h.category === S.configCat)
     : [];
   const habitsHTML = cfgHabits.length
-    ? cfgHabits.map(h => `
+    ? cfgHabits.map(h => {
+        const iconContent = h.icon
+          ? h.icon.startsWith("data:")
+            ? `<img src="${h.icon}" style="width:28px;height:28px;object-fit:cover;border-radius:6px;">`
+            : h.icon
+          : "＋🖼️";
+        return `
         <div class="cfg-habit-row">
-          <button class="btn-habit-icon" data-icon-habit="${h.id}" title="Cambiar icono">${h.icon || "＋🖼️"}</button>
+          <button class="btn-habit-icon" data-icon-habit="${h.id}" title="Cambiar icono">${iconContent}</button>
           <div class="cfg-habit-info">
             <div class="cfg-habit-name">${h.name}</div>
             <div class="cfg-habit-meta">${h.type === "semanal" ? "☀️ Semanal" : "📅 Diario"}${h.category !== "basicos" ? ` · ${h.points} pts` : ""}</div>
           </div>
           <button class="btn-del-child" data-del-habit="${h.id}">🗑️</button>
-        </div>`).join("")
+        </div>`;
+      }).join("")
     : `<p style="color:var(--t3);font-size:13px;padding:8px 0;font-weight:600;">Sin hábitos — agrega el primero</p>`;
 
   // Premios list for configChildId
@@ -1380,7 +1389,40 @@ function openHabitIconPicker(targetHabitId) {
     b.addEventListener("click", () => selectHabitIcon(b.dataset.icon))
   );
   document.getElementById("btn-habit-icon-none").onclick = () => selectHabitIcon("");
+
+  // Upload button triggers hidden file input
+  document.getElementById("btn-upload-habit-img").onclick = () =>
+    document.getElementById("inp-habit-img-file").click();
+
+  document.getElementById("inp-habit-img-file").onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Reset so same file can be picked again
+    e.target.value = "";
+    resizeImageToBase64(file, 128, base64 => selectHabitIcon(base64));
+  };
+
   document.getElementById("modal-habit-icon").classList.remove("hidden");
+}
+
+// Resize image to maxSize×maxSize and return as base64 data URL via callback
+function resizeImageToBase64(file, maxSize, callback) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL("image/webp", 0.85));
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 async function selectHabitIcon(icon) {
