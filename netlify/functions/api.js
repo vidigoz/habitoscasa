@@ -47,6 +47,7 @@ async function initDb(sql) {
   await sql`ALTER TABLE children ADD COLUMN IF NOT EXISTS family_id TEXT DEFAULT 'default'`;
   await sql`ALTER TABLE children ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT '🦁'`;
   await sql`ALTER TABLE habits ADD COLUMN IF NOT EXISTS icon TEXT DEFAULT ''`;
+  await sql`ALTER TABLE habits ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS habits (
@@ -175,7 +176,7 @@ export const handler = async (event) => {
         const ids = children.map(c => c.id);
 
         const [habits, completions, premios, history, canjes, sRows] = await Promise.all([
-          ids.length ? sql`SELECT * FROM habits WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
+          ids.length ? sql`SELECT * FROM habits WHERE child_id = ANY(${ids}) ORDER BY sort_order, created_at` : Promise.resolve([]),
           ids.length ? sql`SELECT * FROM completions WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
           ids.length ? sql`SELECT * FROM premios WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
           ids.length ? sql`SELECT * FROM history WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
@@ -232,6 +233,21 @@ export const handler = async (event) => {
         const { habit_id, icon } = payload;
         await sql`UPDATE habits SET icon = ${icon} WHERE id = ${habit_id}`;
         return ok({ habit_id, icon });
+      }
+
+      case "update_habit_name": {
+        const { habit_id, name } = payload;
+        await sql`UPDATE habits SET name = ${name} WHERE id = ${habit_id}`;
+        return ok({ habit_id, name });
+      }
+
+      case "update_habits_order": {
+        // payload.order = [{ id, sort_order }, ...]
+        const { order } = payload;
+        await Promise.all(order.map(({ id, sort_order }) =>
+          sql`UPDATE habits SET sort_order = ${sort_order} WHERE id = ${id}`
+        ));
+        return ok({ updated: order.length });
       }
 
       case "delete_habit": {

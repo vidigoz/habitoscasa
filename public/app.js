@@ -977,22 +977,25 @@ function renderConfig() {
     ? S.habits.filter(h => h.child_id === S.configChildId && h.category === S.configCat)
     : [];
   const habitsHTML = cfgHabits.length
-    ? cfgHabits.map(h => {
+    ? `<div class="cfg-habits-sortable" id="cfg-habits-sortable">${cfgHabits.map(h => {
         const iconContent = h.icon
           ? h.icon.startsWith("data:")
-            ? `<img src="${h.icon}" style="width:28px;height:28px;object-fit:cover;border-radius:6px;">`
+            ? `<img src="${h.icon}" style="width:28px;height:28px;object-fit:cover;border-radius:6px;" alt="">`
             : h.icon
           : "＋🖼️";
         return `
-        <div class="cfg-habit-row">
+        <div class="cfg-habit-row" draggable="true" data-habit-id="${h.id}">
+          <span class="cfg-drag-handle" title="Arrastrar para reordenar">⠿</span>
           <button class="btn-habit-icon" data-icon-habit="${h.id}" title="Cambiar icono">${iconContent}</button>
           <div class="cfg-habit-info">
-            <div class="cfg-habit-name">${h.name}</div>
+            <div class="cfg-habit-name-wrap">
+              <span class="cfg-habit-name-text" data-edit-habit="${h.id}">${h.name}</span>
+            </div>
             <div class="cfg-habit-meta">${h.type === "semanal" ? "☀️ Semanal" : "📅 Diario"}${h.category !== "basicos" ? ` · ${h.points} pts` : ""}</div>
           </div>
           <button class="btn-del-child" data-del-habit="${h.id}">🗑️</button>
         </div>`;
-      }).join("")
+      }).join("")}</div>`
     : `<p style="color:var(--t3);font-size:13px;padding:8px 0;font-weight:600;">Sin hábitos — agrega el primero</p>`;
 
   // Premios list for configChildId
@@ -1244,6 +1247,14 @@ function attachConfigListeners() {
   document.querySelectorAll("[data-icon-habit]").forEach(b =>
     b.addEventListener("click", () => openHabitIconPicker(b.dataset.iconHabit)));
 
+  // Inline name editing — click text to edit
+  document.querySelectorAll("[data-edit-habit]").forEach(span => {
+    span.addEventListener("click", () => startInlineHabitEdit(span));
+  });
+
+  // Drag-and-drop reorder
+  initHabitDragSort();
+
   // Add habit
   document.getElementById("btn-cfg-add-habit")?.addEventListener("click", addHabitFromConfig);
   document.getElementById("cfg-inp-habit")?.addEventListener("keypress", e => { if (e.key === "Enter") addHabitFromConfig(); });
@@ -1376,6 +1387,89 @@ async function deleteChild(id) {
 }
 
 // ── HABIT ICON PICKER ────────────────────────────────────
+// ── INLINE HABIT NAME EDIT ───────────────────────────────
+function startInlineHabitEdit(span) {
+  const habitId = span.dataset.editHabit;
+  const current = span.textContent;
+  const input = document.createElement("input");
+  input.className = "cfg-habit-name-input";
+  input.value = current;
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+
+  async function commit() {
+    const newName = input.value.trim() || current;
+    const restored = document.createElement("span");
+    restored.className = "cfg-habit-name-text";
+    restored.dataset.editHabit = habitId;
+    restored.textContent = newName;
+    restored.addEventListener("click", () => startInlineHabitEdit(restored));
+    input.replaceWith(restored);
+    if (newName === current) return;
+    const h = S.habits.find(x => x.id === habitId);
+    if (h) h.name = newName;
+    await call("update_habit_name", { habit_id: habitId, name: newName });
+    saveLocal();
+    renderCatView();
+  }
+
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    if (e.key === "Escape") { input.value = current; input.blur(); }
+  });
+}
+
+// ── DRAG-AND-DROP HABIT REORDER ──────────────────────────
+function initHabitDragSort() {
+  const container = document.getElementById("cfg-habits-sortable");
+  if (!container) return;
+
+  let dragEl = null;
+
+  container.querySelectorAll(".cfg-habit-row[draggable]").forEach(row => {
+    row.addEventListener("dragstart", e => {
+      dragEl = row;
+      row.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging");
+      container.querySelectorAll(".cfg-habit-row").forEach(r => r.classList.remove("drag-over"));
+      persistHabitOrder();
+    });
+    row.addEventListener("dragover", e => {
+      e.preventDefault();
+      if (!dragEl || dragEl === row) return;
+      container.querySelectorAll(".cfg-habit-row").forEach(r => r.classList.remove("drag-over"));
+      row.classList.add("drag-over");
+      const rows = [...container.querySelectorAll(".cfg-habit-row")];
+      const fromIdx = rows.indexOf(dragEl);
+      const toIdx = rows.indexOf(row);
+      if (fromIdx < toIdx) row.after(dragEl);
+      else row.before(dragEl);
+    });
+    row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+  });
+}
+
+async function persistHabitOrder() {
+  const container = document.getElementById("cfg-habits-sortable");
+  if (!container) return;
+  const rows = [...container.querySelectorAll(".cfg-habit-row[data-habit-id]")];
+  const order = rows.map((r, i) => ({ id: r.dataset.habitId, sort_order: i }));
+  order.forEach(({ id, sort_order }) => {
+    const h = S.habits.find(x => x.id === id);
+    if (h) h.sort_order = sort_order;
+  });
+  // Re-sort S.habits to match new visual order for this child+category
+  S.habits.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  await call("update_habits_order", { order });
+  saveLocal();
+  renderCatView();
+}
+
 // targetHabitId: null = new habit form, otherwise = existing habit to update
 let _iconPickerTarget = null;
 

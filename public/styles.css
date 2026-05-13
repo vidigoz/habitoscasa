@@ -302,6 +302,14 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .cfg-habit-info { flex: 1; min-width: 0; }
 .cfg-habit-name { font-weight: 700; font-size: 14px; }
 .cfg-habit-meta { font-size: 11px; color: var(--t3); margin-top: 2px; }
+.cfg-drag-handle { font-size: 18px; color: var(--t3); cursor: grab; padding: 0 2px; flex-shrink: 0; user-select: none; line-height: 1; }
+.cfg-drag-handle:active { cursor: grabbing; }
+.cfg-habit-row.dragging { opacity: .4; }
+.cfg-habit-row.drag-over { border-top: 2px solid var(--p); }
+.cfg-habit-name-text { cursor: pointer; border-bottom: 1px dashed transparent; transition: border-color .15s; }
+.cfg-habit-name-text:hover { border-bottom-color: var(--p); color: var(--p); }
+.cfg-habit-name-input { font-size: 14px; font-weight: 700; font-family: var(--ff-b); border: none; border-bottom: 2px solid var(--p); background: transparent; color: var(--t1); outline: none; width: 100%; padding: 1px 0; }
+.cfg-habit-name-wrap { flex: 1; min-width: 0; }
 .btn-habit-icon { background: var(--bg); border: 1.5px solid var(--border); border-radius: 10px; font-size: 24px; width: 44px; height: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: border-color .15s; }
 .btn-habit-icon:hover { border-color: var(--p); }
 .habit-icon-pick-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
