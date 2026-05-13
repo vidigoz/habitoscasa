@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-//  MisHábitos — app.js
+//  Hábitos Kids — app.js
 //  Family-based: each family has a 4-digit PIN for parents
 //  Kids track habits from home; parents manage from config
 // ═══════════════════════════════════════════════════════
@@ -926,7 +926,7 @@ function renderConfig() {
         <div style="font-size:56px;margin-bottom:12px;">🏠</div>
         <p style="font-family:var(--ff-d);font-size:22px;font-weight:800;margin-bottom:8px;">¡Configura tu familia!</p>
         <p style="font-size:14px;color:var(--t2);margin-bottom:24px;line-height:1.5;">
-          Crea el perfil de tu familia para empezar a usar MisHábitos
+          Crea el perfil de tu familia para empezar a usar Hábitos Kids
         </p>
         <button class="btn-primary" id="btn-go-setup" style="max-width:280px;margin:0 auto;">
           🚀 Crear mi familia
@@ -1629,7 +1629,7 @@ function updateChatFabVisibility() {
 
 function buildAIContext() {
   const lines = [];
-  lines.push(`Eres el asistente de MisHábitos, una app de seguimiento de hábitos familiares.`);
+  lines.push(`Eres el asistente de Hábitos Kids, una app de seguimiento de hábitos familiares.`);
   lines.push(`Tu rol es ayudar a los padres a gestionar hábitos, recompensas y analizar el desempeño de sus hijos.`);
   lines.push(`IMPORTANTE: Solo puedes hablar sobre los datos de esta familia. No des consejos ajenos a la app.`);
   lines.push(`Responde siempre en español, de forma amigable, concisa y motivadora.`);

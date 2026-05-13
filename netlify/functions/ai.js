@@ -88,7 +88,7 @@ export const handler = async (event) => {
   // ── GEMINI ────────────────────────────────────────────────
   if (provider === "gemini") {
     const fullMessages = system
-      ? [{ role: "user", parts: [{ text: system }] }, { role: "model", parts: [{ text: "Entendido, actuaré como asistente de MisHábitos." }] }, ...messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }))]
+      ? [{ role: "user", parts: [{ text: system }] }, { role: "model", parts: [{ text: "Entendido, actuaré como asistente de Hábitos Kids." }] }, ...messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }))]
       : messages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
 
     const res = await fetch(
