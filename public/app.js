@@ -10,6 +10,13 @@ const API = "/api/api";
 const AVATARS = ["🦁","🐯","🦊","🐸","🐧","🦋","🦄","🐼","🦖","🚀","🌟","🎮","🎨","🎵","🏆","⚽","🎯","🌈"];
 const PROFILE_COLORS = ["#FF6B9D","#6C63FF","#11998E","#F7971E","#E040FB","#2196F3","#E53935","#00BCD4","#FF5722","#4CAF50"];
 
+const HABIT_ICONS = [
+  "🦷","🛁","🛏️","👕","🥛","🍎","🥦","💧","🧴","🧹","📚","✏️","🎒","🖍️",
+  "🏃","🚴","⚽","🏊","🤸","🧘","💪","🎵","🎹","🎨","🖼️","🧩","🎯","🏆",
+  "😴","🌙","⏰","🌅","🙏","❤️","🤝","😊","🌟","⭐","🌈","🌸","🌻","🦋",
+  "🐕","🐈","🐠","🐹","🌿","🌱","♻️","🧺","🍽️","🥗","🍳","🥤","🎁","🎪",
+];
+
 const SECRET_QUESTIONS = [
   "¿Cuál es el nombre de tu primera mascota?",
   "¿En qué ciudad naciste?",
@@ -85,6 +92,8 @@ const S = {
   configCat: "basicos",
   // Temp: add profile modal
   _newAvatar: AVATARS[0],
+  // Temp: habit icon picker
+  _habitIcon: "",
   // Temp: setup
   _setupPin: null,
 };
@@ -726,10 +735,14 @@ function buildHabitCard(h) {
   const typeLabel = h.type === "semanal" ? "☀️ Semanal" : "📅 Diario";
   const done = countDone(h);
   const complete = isHabitComplete(h);
+  const iconBlock = h.icon
+    ? `<div class="hc-icon">${h.icon}</div>`
+    : "";
+  const nameBlock = `<div class="hc-text"><div class="hc-name">${h.name}</div><div class="hc-meta">${typeLabel}${ptsLabel}</div></div>`;
   if (h.type === "semanal") {
-    return `<div class="habit-card">
+    return `<div class="habit-card ${h.icon ? "has-icon" : ""}">
       <div class="hc-header">
-        <div><div class="hc-name">${h.name}</div><div class="hc-meta">${typeLabel}${ptsLabel}</div></div>
+        ${iconBlock}${nameBlock}
       </div>
       <button class="weekly-btn ${complete ? "done" : ""}" data-weekly="${h.id}">
         ${complete ? "✅ ¡Completado esta semana!" : "❌ Marcar como completado"}
@@ -737,9 +750,9 @@ function buildHabitCard(h) {
     </div>`;
   }
   const pct = Math.min(100, (done / 7) * 100);
-  return `<div class="habit-card">
+  return `<div class="habit-card ${h.icon ? "has-icon" : ""}">
     <div class="hc-header">
-      <div><div class="hc-name">${h.name}</div><div class="hc-meta">${typeLabel}${ptsLabel}</div></div>
+      ${iconBlock}${nameBlock}
     </div>
     <div class="days-row">
       ${DAYS.map(d => {
@@ -964,6 +977,7 @@ function renderConfig() {
   const habitsHTML = cfgHabits.length
     ? cfgHabits.map(h => `
         <div class="cfg-habit-row">
+          <button class="btn-habit-icon" data-icon-habit="${h.id}" title="Cambiar icono">${h.icon || "＋🖼️"}</button>
           <div class="cfg-habit-info">
             <div class="cfg-habit-name">${h.name}</div>
             <div class="cfg-habit-meta">${h.type === "semanal" ? "☀️ Semanal" : "📅 Diario"}${h.category !== "basicos" ? ` · ${h.points} pts` : ""}</div>
@@ -1056,7 +1070,10 @@ function renderConfig() {
         <div id="cfg-habits-list">${habitsHTML}</div>
         <div style="margin-top:14px;padding-top:14px;border-top:1.5px solid var(--border);">
           <p class="form-card-title" style="margin-bottom:10px;">➕ Agregar hábito</p>
-          <input id="cfg-inp-habit" class="field" type="text" placeholder="Nombre del hábito..." autocomplete="off">
+          <div class="habit-icon-pick-row">
+            <button class="btn-habit-icon-pick" id="btn-pick-habit-icon">${S._habitIcon || "🖼️"}</button>
+            <input id="cfg-inp-habit" class="field" type="text" placeholder="Nombre del hábito..." autocomplete="off" style="flex:1">
+          </div>
           <div class="field-row">
             <div class="field-group">
               <label class="field-label">Tipo</label>
@@ -1211,6 +1228,13 @@ function attachConfigListeners() {
     });
   });
 
+  // Habit icon picker (new habit form)
+  document.getElementById("btn-pick-habit-icon")?.addEventListener("click", () => openHabitIconPicker(null));
+
+  // Habit icon picker (existing habits in list)
+  document.querySelectorAll("[data-icon-habit]").forEach(b =>
+    b.addEventListener("click", () => openHabitIconPicker(b.dataset.iconHabit)));
+
   // Add habit
   document.getElementById("btn-cfg-add-habit")?.addEventListener("click", addHabitFromConfig);
   document.getElementById("cfg-inp-habit")?.addEventListener("keypress", e => { if (e.key === "Enter") addHabitFromConfig(); });
@@ -1342,6 +1366,42 @@ async function deleteChild(id) {
   toast("🗑️ Perfil eliminado");
 }
 
+// ── HABIT ICON PICKER ────────────────────────────────────
+// targetHabitId: null = new habit form, otherwise = existing habit to update
+let _iconPickerTarget = null;
+
+function openHabitIconPicker(targetHabitId) {
+  _iconPickerTarget = targetHabitId;
+  const grid = document.getElementById("habit-icon-grid");
+  grid.innerHTML = HABIT_ICONS.map(e =>
+    `<button class="habit-icon-opt" data-icon="${e}">${e}</button>`
+  ).join("");
+  grid.querySelectorAll(".habit-icon-opt").forEach(b =>
+    b.addEventListener("click", () => selectHabitIcon(b.dataset.icon))
+  );
+  document.getElementById("btn-habit-icon-none").onclick = () => selectHabitIcon("");
+  document.getElementById("modal-habit-icon").classList.remove("hidden");
+}
+
+async function selectHabitIcon(icon) {
+  document.getElementById("modal-habit-icon").classList.add("hidden");
+  if (_iconPickerTarget) {
+    // Update existing habit
+    const h = S.habits.find(x => x.id === _iconPickerTarget);
+    if (!h) return;
+    h.icon = icon;
+    await call("update_habit_icon", { habit_id: _iconPickerTarget, icon });
+    saveLocal();
+    renderConfig();
+    renderCatView();
+  } else {
+    // Store for new habit form
+    S._habitIcon = icon;
+    const btn = document.getElementById("btn-pick-habit-icon");
+    if (btn) btn.textContent = icon || "🖼️";
+  }
+}
+
 async function addHabitFromConfig() {
   const name = document.getElementById("cfg-inp-habit")?.value.trim();
   if (!name) return toast("Escribe el nombre del hábito");
@@ -1349,10 +1409,12 @@ async function addHabitFromConfig() {
   const type = document.getElementById("cfg-hval-type")?.value || "diario";
   const ptsEl = document.getElementById("cfg-hval-pts");
   const points = S.configCat === "basicos" ? 0 : parseInt(ptsEl?.value || "2") || 0;
-  const habit = { id: uid(), child_id: S.configChildId, category: S.configCat, name, type, points };
+  const icon = S._habitIcon || "";
+  const habit = { id: uid(), child_id: S.configChildId, category: S.configCat, name, type, points, icon };
   const r = await call("add_habit", habit);
   if (!r.ok) toast("⚠️ Guardado local");
   S.habits.push(habit);
+  S._habitIcon = "";
   saveLocal();
   renderAll();
   toast("✅ Hábito agregado");
@@ -2053,6 +2115,11 @@ async function init() {
   });
   document.getElementById("inp-link-email")?.addEventListener("keypress", e => {
     if (e.key === "Enter") linkEmailFromConfig();
+  });
+
+  // Modal: habit icon picker — close on backdrop click
+  document.getElementById("modal-habit-icon")?.addEventListener("click", e => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
   });
 
   // ── LAUNCH LOGIC ──────────────────────────────────────

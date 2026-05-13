@@ -46,6 +46,7 @@ async function initDb(sql) {
   // Migration: add family_id and avatar if missing
   await sql`ALTER TABLE children ADD COLUMN IF NOT EXISTS family_id TEXT DEFAULT 'default'`;
   await sql`ALTER TABLE children ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT '🦁'`;
+  await sql`ALTER TABLE habits ADD COLUMN IF NOT EXISTS icon TEXT DEFAULT ''`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS habits (
@@ -220,11 +221,17 @@ export const handler = async (event) => {
 
       // ── HABITS ───────────────────────────────────────────────────
       case "add_habit": {
-        const { id, child_id, category, name, type, points } = payload;
-        await sql`INSERT INTO habits (id, child_id, category, name, type, points, week_start)
-                  VALUES (${id}, ${child_id}, ${category}, ${name}, ${type}, ${points}, '1970-01-01')
+        const { id, child_id, category, name, type, points, icon } = payload;
+        await sql`INSERT INTO habits (id, child_id, category, name, type, points, icon, week_start)
+                  VALUES (${id}, ${child_id}, ${category}, ${name}, ${type}, ${points}, ${icon || ""}, '1970-01-01')
                   ON CONFLICT (id) DO NOTHING`;
         return ok(payload);
+      }
+
+      case "update_habit_icon": {
+        const { habit_id, icon } = payload;
+        await sql`UPDATE habits SET icon = ${icon} WHERE id = ${habit_id}`;
+        return ok({ habit_id, icon });
       }
 
       case "delete_habit": {
