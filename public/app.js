@@ -71,6 +71,7 @@ const S = {
   habits: [],
   completions: [],
   premios: [],
+  canjes: [],
   history: [],
   settings: { label_basicos: "Básicos", label_extras: "Extras", label_especiales: "Especiales", ai_key: "", ai_provider: "" },
   // Navigation
@@ -110,7 +111,7 @@ function saveLocal() {
   const snap = {
     family_id: S.family_id, family_name: S.family_name, family_email: S.family_email,
     children: S.children, habits: S.habits, completions: S.completions,
-    premios: S.premios, history: S.history, settings: S.settings,
+    premios: S.premios, canjes: S.canjes, history: S.history, settings: S.settings,
     currentChild: S.currentChild, currentWeek: S.currentWeek,
     currentWeekLabel: S.currentWeekLabel,
   };
@@ -170,6 +171,7 @@ async function loadFromDB() {
   S.children = d.children || [];
   S.habits   = d.habits   || [];
   S.premios  = d.premios  || [];
+  S.canjes   = d.canjes   || [];
   S.history  = d.history  || [];
 
   // For completions: prefer DB data, but never replace current-week local
@@ -632,6 +634,10 @@ function renderHeader() {
   document.getElementById("hdr-pts").textContent = child ? getValidPts(child.id) : 0;
   document.getElementById("chip-name").textContent = child ? child.name : "Perfil";
   document.getElementById("chip-avatar").textContent = child ? getChildAvatar(child, idx) : "😊";
+  const now = new Date();
+  document.getElementById("hdr-date").textContent = now.toLocaleDateString("es-MX", {
+    weekday: "short", day: "numeric", month: "short", year: "numeric"
+  });
 }
 
 function renderProfileRow() {
@@ -761,9 +767,12 @@ function renderPremios() {
   const note = document.getElementById("prem-note");
   if (valid < total) note.textContent = `(+${total - valid} pts bloqueados — completa los Básicos)`;
   else note.textContent = "";
+
   const premios = child ? S.premios.filter(p => p.child_id === child.id) : [];
+  const canjesPending = child ? S.canjes.filter(c => c.child_id === child.id) : [];
   const list = document.getElementById("premios-list");
-  if (!premios.length) {
+
+  if (!premios.length && !canjesPending.length) {
     list.innerHTML = `<div style="text-align:center;padding:28px 16px;">
       <div style="font-size:44px;margin-bottom:10px;">🎁</div>
       <p style="color:var(--t3);font-weight:700;">Sin premios todavía</p>
@@ -771,19 +780,54 @@ function renderPremios() {
     </div>`;
     return;
   }
-  list.innerHTML = premios.map(p => {
-    const can = !p.redeemed && valid >= p.points_required;
-    const pct = Math.min(100, (valid / p.points_required) * 100);
-    return `<div class="prem-card ${p.redeemed ? "redeemed" : ""}">
-      <div class="prem-info">
-        <div class="prem-name">${p.redeemed ? "✅ " : "🎁 "}${p.name}</div>
-        <div class="prem-pts-lbl">${p.redeemed ? "Canjeado" : `${p.points_required} pts requeridos`}</div>
-        ${!p.redeemed ? `<div class="prem-prog"><div class="prem-prog-track"><div class="prem-prog-fill" style="width:${pct}%"></div></div></div>` : ""}
-      </div>
-      ${!p.redeemed ? `<button class="btn-canjear" data-canjear="${p.id}" ${can ? "" : "disabled"}>${can ? "🎉 Canjear" : "🔒"}</button>` : ""}
-    </div>`;
-  }).join("");
+
+  const now = Date.now();
+  const ONE_MONTH = 30 * 24 * 60 * 60 * 1000;
+
+  // ── Available premios ──────────────────────────────────
+  const premiosHTML = premios.length ? `
+    <div class="prem-section-title">🎁 Premios disponibles</div>
+    ${premios.map(p => {
+      const can = valid >= p.points_required && basicosComplete(child.id);
+      const pct = Math.min(100, (valid / p.points_required) * 100);
+      return `<div class="prem-card">
+        <div class="prem-info">
+          <div class="prem-name">🎁 ${p.name}</div>
+          <div class="prem-pts-lbl">${p.points_required} pts requeridos</div>
+          <div class="prem-prog"><div class="prem-prog-track"><div class="prem-prog-fill" style="width:${pct}%"></div></div></div>
+        </div>
+        <button class="btn-canjear" data-canjear="${p.id}" ${can ? "" : "disabled"}>${can ? "🎉 Canjear" : "🔒"}</button>
+      </div>`;
+    }).join("")}` : "";
+
+  // ── Canjes pendientes de usar ──────────────────────────
+  const canjesHTML = canjesPending.length ? `
+    <div class="prem-section-title" style="margin-top:20px;">✅ Canjeados — pendientes de usar</div>
+    ${canjesPending.map(c => {
+      const premio = S.premios.find(p => p.id === c.premio_id);
+      const redeemedAt = new Date(c.redeemed_at);
+      const expiresAt = new Date(redeemedAt.getTime() + ONE_MONTH);
+      const expired = now > expiresAt.getTime();
+      const diasRestantes = Math.max(0, Math.ceil((expiresAt.getTime() - now) / (24 * 60 * 60 * 1000)));
+      const fmtDate = redeemedAt.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+      const nombre = premio ? premio.name : "Premio eliminado";
+      return `<div class="prem-card prem-card-canje ${expired ? "expired" : ""}">
+        <div class="prem-info">
+          <div class="prem-name">🏆 ${nombre}</div>
+          <div class="prem-pts-lbl">Canjeado el ${fmtDate}</div>
+          <div class="prem-vigencia ${expired ? "prem-vigencia-exp" : ""}">
+            ${expired ? "⚠️ Vencido" : `⏳ Vigente ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""} más`}
+          </div>
+        </div>
+        <button class="btn-usar-canje" data-use-canje="${c.id}">
+          ${expired ? "🗑️ Quitar" : "✅ Ya lo usé"}
+        </button>
+      </div>`;
+    }).join("")}` : "";
+
+  list.innerHTML = premiosHTML + canjesHTML;
   list.querySelectorAll("[data-canjear]").forEach(b => b.addEventListener("click", () => canjear(b.dataset.canjear)));
+  list.querySelectorAll("[data-use-canje]").forEach(b => b.addEventListener("click", () => usarCanje(b.dataset.useCanje)));
 }
 
 function renderDashboard() {
@@ -931,14 +975,17 @@ function renderConfig() {
   // Premios list for configChildId
   const cfgPremios = S.configChildId ? S.premios.filter(p => p.child_id === S.configChildId) : [];
   const premiosHTML = cfgPremios.length
-    ? cfgPremios.map(p => `
+    ? cfgPremios.map(p => {
+        const canjesCount = S.canjes.filter(c => c.premio_id === p.id).length;
+        return `
         <div class="cfg-habit-row">
           <div class="cfg-habit-info">
-            <div class="cfg-habit-name">${p.redeemed ? "✅ " : "🎁 "}${p.name}</div>
-            <div class="cfg-habit-meta">${p.points_required} pts requeridos${p.redeemed ? " · Canjeado" : ""}</div>
+            <div class="cfg-habit-name">🎁 ${p.name}</div>
+            <div class="cfg-habit-meta">${p.points_required} pts${canjesCount ? ` · ${canjesCount} canje${canjesCount !== 1 ? "s" : ""} pendiente${canjesCount !== 1 ? "s" : ""}` : ""}</div>
           </div>
           <button class="btn-del-child" data-del-premio="${p.id}">🗑️</button>
-        </div>`).join("")
+        </div>`;
+      }).join("")
     : `<p style="color:var(--t3);font-size:13px;padding:8px 0;font-weight:600;">Sin premios — crea el primero</p>`;
 
   // Children list
@@ -1403,26 +1450,36 @@ async function canjear(id) {
   const valid = getValidPts(S.currentChild);
   if (valid < p.points_required) return toast("No tienes suficientes puntos");
   if (!basicosComplete(S.currentChild)) return toast("Completa todos los Básicos primero");
-  p.redeemed = true;
-  await call("redeem_premio", { premio_id: id });
+  const canje = { id: uid(), premio_id: id, child_id: S.currentChild, redeemed_at: new Date().toISOString() };
+  await call("redeem_premio", { id: canje.id, premio_id: id, child_id: S.currentChild });
+  S.canjes.push(canje);
   await adjustPts(S.currentChild, -p.points_required);
   saveLocal();
   renderPremios();
   renderHeader();
   renderDashboard();
   renderProfileRow();
-  toast(`🎉 ¡${p.name} canjeado!`);
+  toast(`🎉 ¡${p.name} canjeado! Queda en tu lista por 30 días`);
+}
+
+async function usarCanje(canje_id) {
+  await call("use_canje", { canje_id });
+  S.canjes = S.canjes.filter(c => c.id !== canje_id);
+  saveLocal();
+  renderPremios();
+  toast("✅ ¡Listo! Premio marcado como usado");
 }
 
 async function deletePremio(id) {
   await call("delete_premio", { premio_id: id });
   S.premios = S.premios.filter(p => p.id !== id);
+  S.canjes = S.canjes.filter(c => c.premio_id !== id);
   saveLocal();
   renderAll();
   toast("🗑️ Premio eliminado");
 }
 
-async function archiveWeek(oldWeek, oldLabel, newLabel) {
+async function archiveWeek(oldWeek, oldLabel, newLabel, newWeekStart) {
   for (const child of S.children) {
     // Skip if already archived this week for this child
     if (S.history.some(h => h.child_id === child.id && h.week_start === oldWeek)) continue;
@@ -1434,7 +1491,7 @@ async function archiveWeek(oldWeek, oldLabel, newLabel) {
   }
   await call("delete_completions_by_week", { week_start: oldWeek });
   S.completions = S.completions.filter(c => c.week_start !== oldWeek);
-  S.currentWeek = getWeekStart();
+  S.currentWeek = newWeekStart || getWeekStart();
   S.currentWeekLabel = newLabel || getWeekLabel();
 }
 
@@ -1456,6 +1513,61 @@ async function checkAutoWeek() {
   saveLocal();
   renderAll();
   toast("📅 ¡Nueva semana! El historial se actualizó automáticamente");
+}
+
+// Returns ms until next Sunday at 12:00 local time
+function msUntilSundayNoon() {
+  const now = new Date();
+  const target = new Date(now);
+  const daysUntilSunday = (7 - now.getDay()) % 7;
+  target.setDate(now.getDate() + (daysUntilSunday === 0 ? 0 : daysUntilSunday));
+  target.setHours(12, 0, 0, 0);
+  // If Sunday noon already passed, schedule for next Sunday
+  if (target <= now) target.setDate(target.getDate() + 7);
+  return target - now;
+}
+
+// Called every Sunday at noon — archives the current week and starts a new one.
+// Unlike checkAutoWeek (which detects week change via date comparison), this forces
+// the reset on Sunday noon even though getWeekStart() still returns the same Monday.
+async function doSundayNoonReset() {
+  if (!S.family_id || !S.children.length) return;
+  const nextMonday = new Date();
+  nextMonday.setDate(nextMonday.getDate() + 1); // Sunday + 1 = Monday
+  const newWeekStart = toLocalDateStr(nextMonday);
+  // Guard: already reset if currentWeek points to next Monday
+  if (S.currentWeek === newWeekStart) return;
+  const oldWeek = S.currentWeek;
+  const oldLabel = S.currentWeekLabel;
+  const newLabel = getWeekLabel(nextMonday);
+  await archiveWeek(oldWeek, oldLabel, newLabel, newWeekStart);
+  saveLocal();
+  renderAll();
+  toast("📅 ¡Nueva semana iniciada automáticamente!");
+}
+
+// Check if the app was opened on Sunday after noon and the weekly reset hasn't
+// happened yet (currentWeek still points to this week's Monday).
+async function checkSundayNoonReset() {
+  const now = new Date();
+  const isSunday = now.getDay() === 0;
+  const isPastNoon = now.getHours() >= 12;
+  if (!isSunday || !isPastNoon) return;
+  // Reset already happened if currentWeek points to next Monday (today+1)
+  const nextMonday = new Date(now);
+  nextMonday.setDate(now.getDate() + 1);
+  const nextMondayStr = toLocalDateStr(nextMonday);
+  if (S.currentWeek === nextMondayStr) return; // already reset
+  await doSundayNoonReset();
+}
+
+function scheduleWeeklyReset() {
+  const delay = msUntilSundayNoon();
+  setTimeout(async () => {
+    await doSundayNoonReset();
+    // Schedule the next Sunday reset
+    scheduleWeeklyReset();
+  }, delay);
 }
 
 async function startNewWeek() {
@@ -1974,7 +2086,11 @@ async function init() {
             saveLocal();
           }
           await checkAutoWeek();
+          // If app opens on Sunday after noon and reset hasn't fired yet, do it now
+          await checkSundayNoonReset();
           renderAll();
+          // Schedule automatic Sunday noon reset for while app stays open
+          scheduleWeeklyReset();
         });
       }
     }, 400);

@@ -77,6 +77,13 @@ async function initDb(sql) {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`;
   await sql`
+    CREATE TABLE IF NOT EXISTS canjes (
+      id TEXT PRIMARY KEY,
+      premio_id TEXT NOT NULL,
+      child_id TEXT NOT NULL,
+      redeemed_at TIMESTAMPTZ DEFAULT NOW()
+    )`;
+  await sql`
     CREATE TABLE IF NOT EXISTS history (
       id TEXT PRIMARY KEY,
       child_id TEXT NOT NULL,
@@ -166,11 +173,12 @@ export const handler = async (event) => {
         const children = await sql`SELECT * FROM children WHERE family_id = ${family_id} ORDER BY created_at`;
         const ids = children.map(c => c.id);
 
-        const [habits, completions, premios, history, sRows] = await Promise.all([
+        const [habits, completions, premios, history, canjes, sRows] = await Promise.all([
           ids.length ? sql`SELECT * FROM habits WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
           ids.length ? sql`SELECT * FROM completions WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
           ids.length ? sql`SELECT * FROM premios WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
           ids.length ? sql`SELECT * FROM history WHERE child_id = ANY(${ids}) ORDER BY created_at` : Promise.resolve([]),
+          ids.length ? sql`SELECT * FROM canjes WHERE child_id = ANY(${ids}) ORDER BY redeemed_at` : Promise.resolve([]),
           sql`SELECT key, value FROM settings WHERE key LIKE ${family_id + ":%"}`,
         ]);
 
@@ -180,7 +188,7 @@ export const handler = async (event) => {
           try { settings[k] = JSON.parse(r.value); } catch { settings[k] = r.value; }
         });
 
-        return ok({ children, habits, completions, premios, history, settings });
+        return ok({ children, habits, completions, premios, history, canjes, settings });
       }
 
       // ── CHILDREN ─────────────────────────────────────────────────
@@ -197,6 +205,7 @@ export const handler = async (event) => {
         const { child_id } = payload;
         await sql`DELETE FROM completions WHERE child_id = ${child_id}`;
         await sql`DELETE FROM habits WHERE child_id = ${child_id}`;
+        await sql`DELETE FROM canjes WHERE child_id = ${child_id}`;
         await sql`DELETE FROM premios WHERE child_id = ${child_id}`;
         await sql`DELETE FROM history WHERE child_id = ${child_id}`;
         await sql`DELETE FROM children WHERE id = ${child_id}`;
@@ -264,13 +273,22 @@ export const handler = async (event) => {
       }
 
       case "redeem_premio": {
-        const { premio_id } = payload;
-        await sql`UPDATE premios SET redeemed = true WHERE id = ${premio_id}`;
-        return ok({ premio_id });
+        // Creates a canje record (the premio itself stays available for future redemptions)
+        const { id, premio_id, child_id } = payload;
+        await sql`INSERT INTO canjes (id, premio_id, child_id) VALUES (${id}, ${premio_id}, ${child_id}) ON CONFLICT (id) DO NOTHING`;
+        return ok({ id, premio_id, child_id });
+      }
+
+      case "use_canje": {
+        // Mark a canje as physically used — removes it from the pending list
+        const { canje_id } = payload;
+        await sql`DELETE FROM canjes WHERE id = ${canje_id}`;
+        return ok({ deleted: canje_id });
       }
 
       case "delete_premio": {
         const { premio_id } = payload;
+        await sql`DELETE FROM canjes WHERE premio_id = ${premio_id}`;
         await sql`DELETE FROM premios WHERE id = ${premio_id}`;
         return ok({ deleted: premio_id });
       }
@@ -303,6 +321,7 @@ export const handler = async (event) => {
         if (ids.length) {
           await sql`DELETE FROM completions WHERE child_id = ANY(${ids})`;
           await sql`DELETE FROM habits WHERE child_id = ANY(${ids})`;
+          await sql`DELETE FROM canjes WHERE child_id = ANY(${ids})`;
           await sql`DELETE FROM premios WHERE child_id = ANY(${ids})`;
           await sql`DELETE FROM history WHERE child_id = ANY(${ids})`;
           await sql`DELETE FROM children WHERE family_id = ${family_id}`;
