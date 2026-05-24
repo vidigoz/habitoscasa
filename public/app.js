@@ -640,7 +640,18 @@ function renderAll() {
 function renderHeader() {
   const child = S.children.find(c => c.id === S.currentChild);
   const idx = S.children.findIndex(c => c.id === S.currentChild);
-  document.getElementById("hdr-pts").textContent = child ? getValidPts(child.id) : 0;
+  const pill = document.getElementById("pts-pill");
+  if (child) {
+    const total = getTotalPts(child.id);
+    const valid = basicosComplete(child.id);
+    const preview = !valid && total > 0;
+    document.getElementById("hdr-pts").textContent = total;
+    document.getElementById("pts-icon").textContent = preview ? "🔒" : "⭐";
+    pill.classList.toggle("pts-pill--preview", preview);
+  } else {
+    document.getElementById("hdr-pts").textContent = 0;
+    pill.classList.remove("pts-pill--preview");
+  }
   document.getElementById("chip-name").textContent = child ? child.name : "Perfil";
   document.getElementById("chip-avatar").textContent = child ? getChildAvatar(child, idx) : "😊";
   const now = new Date();

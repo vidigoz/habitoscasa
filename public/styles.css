@@ -154,7 +154,8 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .hd-right { display: flex; align-items: center; gap: 8px; }
 .hdr-date { width: 100%; text-align: right; font-size: 11px; font-weight: 600; color: var(--t2); white-space: nowrap; letter-spacing: .01em; padding-top: 2px; }
 .app-wordmark { font-family: var(--ff-d); font-size: 22px; font-weight: 800; background: var(--grad-main); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.pts-pill { display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #F7971E, #FFD200); color: #fff; padding: 5px 13px; border-radius: 24px; font-weight: 800; font-size: 13px; box-shadow: 0 3px 10px rgba(247,151,30,.32); }
+.pts-pill { display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #F7971E, #FFD200); color: #fff; padding: 5px 13px; border-radius: 24px; font-weight: 800; font-size: 13px; box-shadow: 0 3px 10px rgba(247,151,30,.32); transition: background .3s; }
+.pts-pill--preview { background: linear-gradient(135deg, #9CA3AF, #CBD5E1); box-shadow: 0 3px 10px rgba(156,163,175,.32); }
 .pts-star { font-size: 14px; }
 .pts-label { font-size: 11px; opacity: .85; }
 .child-chip { display: flex; align-items: center; gap: 6px; background: var(--p-lt); color: var(--p); border: 1.5px solid var(--p); padding: 6px 12px; border-radius: 24px; font-weight: 700; font-size: 13px; cursor: pointer; transition: all .15s; max-width: 140px; overflow: hidden; }
