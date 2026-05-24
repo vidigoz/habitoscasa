@@ -142,18 +142,17 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 
 /* ─── HEADER ─────────────────────────────────────────── */
 .header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; background: var(--surf);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  padding: 10px 16px 6px; background: var(--surf);
   border-bottom: 1.5px solid var(--border);
   box-shadow: 0 2px 12px rgba(108,99,255,.08);
   flex-shrink: 0; z-index: 50;
 }
-@media(min-width:768px){ .header { padding: 14px 24px; } }
-@media(min-width:1024px){ .header { padding: 16px 32px; } }
+@media(min-width:768px){ .header { padding: 12px 24px 8px; } }
+@media(min-width:1024px){ .header { padding: 14px 32px 10px; } }
 .hd-left { display: flex; align-items: center; gap: 10px; }
 .hd-right { display: flex; align-items: center; gap: 8px; }
-.hdr-date { font-size: 11px; font-weight: 600; color: var(--t2); white-space: nowrap; letter-spacing: .01em; }
-@media(max-width:380px){ .hdr-date { display: none; } }
+.hdr-date { width: 100%; text-align: right; font-size: 11px; font-weight: 600; color: var(--t2); white-space: nowrap; letter-spacing: .01em; padding-top: 2px; }
 .app-wordmark { font-family: var(--ff-d); font-size: 22px; font-weight: 800; background: var(--grad-main); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .pts-pill { display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #F7971E, #FFD200); color: #fff; padding: 5px 13px; border-radius: 24px; font-weight: 800; font-size: 13px; box-shadow: 0 3px 10px rgba(247,151,30,.32); }
 .pts-star { font-size: 14px; }
@@ -184,6 +183,7 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .btn-week { width: 100%; background: var(--grad-main); color: #fff; border: none; border-radius: var(--r-sm); padding: 10px 16px; font-weight: 800; font-size: 13px; cursor: pointer; font-family: var(--ff-b); box-shadow: 0 3px 12px rgba(108,99,255,.28); transition: all .17s; }
 .btn-week:hover { transform: translateY(-1px); }
 .sb-sync { padding: 8px 12px; border-radius: var(--r-xs); font-size: 12px; font-weight: 700; margin: 8px 16px 0; }
+.sb-version { margin-top: auto; padding: 12px 16px; font-size: 11px; font-weight: 600; color: var(--t2); opacity: .5; }
 .sb-sync.ok { background: var(--ok-lt); color: #065F46; }
 .sb-sync.err { background: #FFECEC; color: #B52A2A; }
 
