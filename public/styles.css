@@ -458,6 +458,7 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .db-dot-ok { color: var(--ok); }
 .db-dot-err { color: var(--bas-from); }
 .confirm-box { padding: 12px; background: #FFECEC; border-radius: var(--r-sm); margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--bas-from); }
+.cfg-pin-display { font-size: 22px; font-weight: 900; color: var(--p); letter-spacing: 6px; text-align: center; padding: 8px 0 4px; }
 .confirm-btns { display: flex; gap: 8px; margin-top: 10px; }
 
 

@@ -435,12 +435,10 @@ async function recoverByEmail() {
     errEl.classList.remove("hidden");
     return;
   }
-  // Found — restore family_id and load from DB
   S.family_id = r.data.family_id;
   S.family_name = r.data.name;
   S.family_email = email;
   saveLocal();
-  // Clear local PIN since we don't have it — user will need to verify from config
   localStorage.removeItem("mh_pin");
   clearPinVerified();
   const loaded = await loadFromDB();
@@ -943,7 +941,9 @@ function buildSecurityCard() {
       <h3 class="card-title">🔐 Seguridad</h3>
       <div style="display:flex;gap:8px;margin-bottom:16px;">
         <button id="btn-cfg-change-pin" class="btn-ghost btn-sm" style="flex:1;">🔑 Cambiar PIN</button>
+        <button id="btn-cfg-show-pin" class="btn-ghost btn-sm" style="flex:1;">👁 Ver PIN</button>
       </div>
+      <p id="cfg-pin-display" class="cfg-pin-display hidden"></p>
       <p class="field-label">Pregunta secreta ${hasQuestion ? "✅" : "⚠️ No configurada"}</p>
       ${hasQuestion ? `<p style="font-size:12px;color:var(--t2);margin-bottom:10px;font-style:italic;">"${questionText}"</p>` : ""}
       <select id="cfg-secret-question" class="field" style="margin-bottom:8px;">${optionsHTML}</select>
@@ -1220,6 +1220,24 @@ function attachConfigListeners() {
 
   // Change PIN
   document.getElementById("btn-cfg-change-pin")?.addEventListener("click", openChangePinModal);
+
+  // Show PIN while pressed
+  const btnShowPin = document.getElementById("btn-cfg-show-pin");
+  const pinDisplay = document.getElementById("cfg-pin-display");
+  if (btnShowPin && pinDisplay) {
+    const showPin = () => {
+      const hash = localStorage.getItem("mh_pin");
+      const pin = hash ? atob(hash).split(":")[1] : null;
+      pinDisplay.textContent = pin ? `PIN: ${pin}` : "PIN no disponible";
+      pinDisplay.classList.remove("hidden");
+    };
+    const hidePin = () => pinDisplay.classList.add("hidden");
+    btnShowPin.addEventListener("mousedown", showPin);
+    btnShowPin.addEventListener("touchstart", showPin, { passive: true });
+    btnShowPin.addEventListener("mouseup", hidePin);
+    btnShowPin.addEventListener("mouseleave", hidePin);
+    btnShowPin.addEventListener("touchend", hidePin);
+  }
 
   // Save secret question
   document.getElementById("btn-cfg-save-secret")?.addEventListener("click", () => {

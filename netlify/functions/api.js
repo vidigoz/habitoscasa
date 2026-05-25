@@ -151,6 +151,7 @@ export const handler = async (event) => {
         return ok({ name: rows[0].name, email: rows[0].email || null });
       }
 
+
       case "link_email": {
         const { family_id, email } = payload;
         if (!family_id || !email) return err("family_id y email requeridos");
