@@ -58,6 +58,16 @@ function getWeekLabel(d = new Date()) {
   return `${start.toLocaleDateString("es-MX", f)} – ${end.toLocaleDateString("es-MX", f)}`;
 }
 
+function getWeekRangeLabel(weekStartStr) {
+  const start = new Date(weekStartStr + "T12:00:00");
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const f = { weekday: "long", day: "numeric", month: "long" };
+  const startTxt = start.toLocaleDateString("es-MX", f);
+  const endTxt = end.toLocaleDateString("es-MX", f);
+  return `${startTxt.charAt(0).toUpperCase() + startTxt.slice(1)} – ${endTxt.charAt(0).toUpperCase() + endTxt.slice(1)}`;
+}
+
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById("toast");
@@ -632,9 +642,11 @@ function renderAll() {
   renderDashboard();
   renderHistorial();
   if (S.currentView === "config") renderConfig();
-  // Update sidebar family name
+  // Update sidebar family name and week range
   const sbFam = document.getElementById("sb-family-name");
   if (sbFam) sbFam.textContent = S.family_name ? `Familia ${S.family_name}` : "";
+  const sbWk = document.getElementById("sb-wk-val");
+  if (sbWk) sbWk.textContent = getWeekRangeLabel(S.currentWeek);
 }
 
 function renderHeader() {
@@ -1134,13 +1146,6 @@ function renderConfig() {
       ` : `<p style="color:var(--t3);font-size:13px;font-weight:600;">Crea un perfil primero</p>`}
     </div>
 
-    <!-- Semana -->
-    <div class="card">
-      <h3 class="card-title">📅 Semana</h3>
-      <p class="card-desc" style="margin-bottom:12px;">Semana actual: <strong>${S.currentWeekLabel}</strong></p>
-      <button class="btn-primary btn-sm" id="btn-cfg-new-week">✨ Iniciar nueva semana</button>
-    </div>
-
     <!-- Categorías -->
     <div class="card">
       <h3 class="card-title">🏷️ Nombres de categorías</h3>
@@ -1280,12 +1285,6 @@ function attachConfigListeners() {
 
   // Add premio
   document.getElementById("btn-cfg-add-premio")?.addEventListener("click", addPremioFromConfig);
-
-  // New week
-  document.getElementById("btn-cfg-new-week")?.addEventListener("click", () => {
-    document.getElementById("inp-week-title").value = getWeekLabel();
-    document.getElementById("modal-week").classList.remove("hidden");
-  });
 
   // Labels
   document.getElementById("btn-save-labels")?.addEventListener("click", saveLabels);
@@ -1724,21 +1723,21 @@ async function checkAutoWeek() {
   toast("📅 ¡Nueva semana! El historial se actualizó automáticamente");
 }
 
-// Returns ms until next Sunday at 12:00 local time
-function msUntilSundayNoon() {
+// Returns ms until next Sunday at 23:59 local time
+function msUntilSundayMidnight() {
   const now = new Date();
   const target = new Date(now);
   const daysUntilSunday = (7 - now.getDay()) % 7;
   target.setDate(now.getDate() + (daysUntilSunday === 0 ? 0 : daysUntilSunday));
-  target.setHours(12, 0, 0, 0);
-  // If Sunday noon already passed, schedule for next Sunday
+  target.setHours(23, 59, 0, 0);
+  // If Sunday 23:59 already passed, schedule for next Sunday
   if (target <= now) target.setDate(target.getDate() + 7);
   return target - now;
 }
 
-// Called every Sunday at noon — archives the current week and starts a new one.
+// Called every Sunday at 23:59 — archives the current week and starts a new one.
 // Unlike checkAutoWeek (which detects week change via date comparison), this forces
-// the reset on Sunday noon even though getWeekStart() still returns the same Monday.
+// the reset on Sunday night even though getWeekStart() still returns the same Monday.
 async function doSundayNoonReset() {
   if (!S.family_id || !S.children.length) return;
   const nextMonday = new Date();
@@ -1760,8 +1759,8 @@ async function doSundayNoonReset() {
 async function checkSundayNoonReset() {
   const now = new Date();
   const isSunday = now.getDay() === 0;
-  const isPastNoon = now.getHours() >= 12;
-  if (!isSunday || !isPastNoon) return;
+  const isPast2359 = now.getHours() === 23 && now.getMinutes() >= 59;
+  if (!isSunday || !isPast2359) return;
   // Reset already happened if currentWeek points to next Monday (today+1)
   const nextMonday = new Date(now);
   nextMonday.setDate(now.getDate() + 1);
@@ -1771,22 +1770,36 @@ async function checkSundayNoonReset() {
 }
 
 function scheduleWeeklyReset() {
-  const delay = msUntilSundayNoon();
+  const delay = msUntilSundayMidnight();
   setTimeout(async () => {
     await doSundayNoonReset();
-    // Schedule the next Sunday reset
     scheduleWeeklyReset();
   }, delay);
 }
 
-async function startNewWeek() {
-  const label = document.getElementById("inp-week-title").value.trim();
-  if (!label) return toast("Escribe el título de la semana");
-  await archiveWeek(S.currentWeek, S.currentWeekLabel, label);
-  document.getElementById("modal-week").classList.add("hidden");
-  saveLocal();
-  renderAll();
-  toast("✨ ¡Nueva semana iniciada!");
+function updateCountdownTimer() {
+  const el = document.getElementById("sb-countdown-timer");
+  if (!el) return;
+  const now = new Date();
+  const target = new Date(now);
+  const daysUntilSunday = (7 - now.getDay()) % 7;
+  target.setDate(now.getDate() + (daysUntilSunday === 0 ? 0 : daysUntilSunday));
+  target.setHours(23, 59, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 7);
+  const diff = target - now;
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  parts.push(`${String(hours).padStart(2, "0")}h`);
+  parts.push(`${String(mins).padStart(2, "0")}m`);
+  el.textContent = parts.join(" ");
+}
+
+function startCountdownTimer() {
+  updateCountdownTimer();
+  setInterval(updateCountdownTimer, 60000);
 }
 
 async function saveLabels() {
@@ -2206,17 +2219,6 @@ async function init() {
     _pinCallback = null;
   });
 
-  // Nueva semana modal
-  document.getElementById("btn-new-week")?.addEventListener("click", () => {
-    document.getElementById("inp-week-title").value = getWeekLabel();
-    document.getElementById("modal-week").classList.remove("hidden");
-    closeSidebar();
-  });
-  document.getElementById("btn-week-confirm")?.addEventListener("click", startNewWeek);
-  document.getElementById("btn-week-cancel")?.addEventListener("click", () =>
-    document.getElementById("modal-week").classList.add("hidden"));
-  document.getElementById("inp-week-title").addEventListener("keypress", e => { if (e.key === "Enter") startNewWeek(); });
-
   // Chat
   document.getElementById("btn-chat-open")?.addEventListener("click", openChatPanel);
   document.getElementById("btn-chat-close")?.addEventListener("click", closeChatPanel);
@@ -2303,8 +2305,9 @@ async function init() {
           // If app opens on Sunday after noon and reset hasn't fired yet, do it now
           await checkSundayNoonReset();
           renderAll();
-          // Schedule automatic Sunday noon reset for while app stays open
+          // Schedule automatic Sunday reset and start countdown timer
           scheduleWeeklyReset();
+          startCountdownTimer();
         });
       }
     }, 400);
