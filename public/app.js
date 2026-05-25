@@ -2438,9 +2438,90 @@ function attachAiConfigListeners() {
   });
 }
 
+// ── THEMES ────────────────────────────────────────────────
+function applyTheme(theme) {
+  if (theme) document.documentElement.setAttribute("data-theme", theme);
+  else document.documentElement.removeAttribute("data-theme");
+  localStorage.setItem("mh_theme", theme || "");
+  document.querySelectorAll(".theme-swatch").forEach(b => {
+    b.classList.toggle("active", b.dataset.theme === theme);
+  });
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("mh_theme") || "";
+  applyTheme(saved);
+  document.querySelectorAll(".theme-swatch").forEach(b => {
+    b.addEventListener("click", () => applyTheme(b.dataset.theme));
+  });
+}
+
+function initFabDrag() {
+  const fab = document.getElementById("btn-chat-open");
+  if (!fab) return;
+
+  const FAB_SIZE = 54;
+  const MARGIN = 16;
+
+  // Restore saved position
+  const savedTop = localStorage.getItem("mh_fab_top");
+  if (savedTop !== null) {
+    fab.style.bottom = "auto";
+    fab.style.top = savedTop + "px";
+  } else {
+    // Default: set top from bottom so we can switch to top-based positioning
+    fab.style.bottom = "auto";
+    fab.style.top = (window.innerHeight - FAB_SIZE - 24) + "px";
+  }
+
+  let startY, startTop, dragging = false;
+
+  function onStart(e) {
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    startY = clientY;
+    startTop = parseInt(fab.style.top) || (window.innerHeight - FAB_SIZE - 24);
+    dragging = false;
+    fab.classList.add("dragging");
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onEnd);
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
+  }
+
+  function onMove(e) {
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const delta = clientY - startY;
+    if (Math.abs(delta) > 4) dragging = true;
+    if (!dragging) return;
+    if (e.cancelable) e.preventDefault();
+    const newTop = Math.max(MARGIN, Math.min(window.innerHeight - FAB_SIZE - MARGIN, startTop + delta));
+    fab.style.top = newTop + "px";
+  }
+
+  function onEnd() {
+    fab.classList.remove("dragging");
+    if (dragging) localStorage.setItem("mh_fab_top", parseInt(fab.style.top));
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onEnd);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onEnd);
+    // Prevent click from firing after drag
+    if (dragging) {
+      fab.addEventListener("click", e => e.stopImmediatePropagation(), { once: true, capture: true });
+    }
+    dragging = false;
+  }
+
+  fab.addEventListener("mousedown", onStart);
+  fab.addEventListener("touchstart", onStart, { passive: true });
+}
+
 // ── INIT ──────────────────────────────────────────────────
 async function init() {
   loadLocal();
+  initTheme();
+  initFabDrag();
 
   // ── EVENT LISTENERS (stable, outside of dynamic renders) ──
 

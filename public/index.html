@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="themes.css">
 </head>
 <body>
 
@@ -173,6 +174,15 @@
     <div class="sb-countdown">
       <p class="sb-countdown-label">⏳ Reinicio de semana en</p>
       <p id="sb-countdown-timer" class="sb-countdown-timer">—</p>
+    </div>
+    <div class="sb-theme-box">
+      <p class="sb-theme-label">🎨 Tema</p>
+      <div class="sb-theme-swatches">
+        <button class="theme-swatch" data-theme="" title="Candy Pop" style="background: linear-gradient(135deg,#6C63FF,#FF6B9D)"></button>
+        <button class="theme-swatch" data-theme="nocturno" title="Nocturno" style="background: linear-gradient(135deg,#1A1535,#A89BFF)"></button>
+        <button class="theme-swatch" data-theme="sunshine" title="Sunshine" style="background: linear-gradient(135deg,#FF8C42,#FFB347)"></button>
+        <button class="theme-swatch" data-theme="focus" title="Focus" style="background: linear-gradient(135deg,#5B6EF5,#2DD4BF)"></button>
+      </div>
     </div>
     <div class="sb-version">v1.0.1</div>
   </aside>
