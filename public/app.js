@@ -213,7 +213,7 @@ async function loadFromDB() {
   S.currentWeek = todayWeek;
   S.currentWeekLabel = getWeekLabel();
   if (d.settings) {
-    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a"].forEach(k => {
+    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a", "story_hour"].forEach(k => {
       if (d.settings[k] !== undefined) S.settings[k] = d.settings[k];
     });
     // Sync PIN and secret question from DB to localStorage so all devices work
@@ -702,8 +702,10 @@ function renderProfileRow() {
   row.querySelectorAll("[data-cid]").forEach(b => {
     b.addEventListener("click", () => {
       S.currentChild = b.dataset.cid;
+      _favExpanded = null;
       saveLocal();
       renderAll();
+      if (S.currentView === "cuentos") loadStory().then(renderCuentos);
     });
   });
 }
@@ -1170,6 +1172,17 @@ function renderConfig() {
     <!-- AI Assistant -->
     ${buildAiConfigCard()}
 
+    <!-- Cuentos -->
+    <div class="card">
+      <h3 class="card-title">📖 Cuentos</h3>
+      <p class="card-desc">Hora del día para generar el cuento automáticamente.</p>
+      <div class="field-row">
+        <input id="inp-story-hour" class="field" type="number" min="0" max="23" placeholder="Ej: 19 (para 7pm)" value="${S.settings.story_hour ?? ""}">
+        <button class="btn-primary btn-sm" id="btn-save-story-hour">Guardar</button>
+      </div>
+      <p class="card-sub">Deja vacío para desactivar la generación automática.</p>
+    </div>
+
     <!-- Danger -->
     <div class="card card-danger">
       <h3 class="card-title danger-title">⚠️ Zona de peligro</h3>
@@ -1289,6 +1302,9 @@ function attachConfigListeners() {
   // Labels
   document.getElementById("btn-save-labels")?.addEventListener("click", saveLabels);
 
+  // Story hour
+  document.getElementById("btn-save-story-hour")?.addEventListener("click", saveStoryHour);
+
   // Danger zone
   document.getElementById("btn-clear-all")?.addEventListener("click", () =>
     document.getElementById("clear-confirm").classList.remove("hidden"));
@@ -1325,6 +1341,7 @@ function doShowView(name) {
   if (name === "premios") renderPremios();
   if (name === "dashboard") renderDashboard();
   if (name === "historial") renderHistorial();
+  if (name === "cuentos") loadStory().then(renderCuentos);
 }
 
 function openCat(cat) {
@@ -1814,6 +1831,19 @@ async function saveLabels() {
   toast("✅ Nombres guardados");
 }
 
+async function saveStoryHour() {
+  const val = document.getElementById("inp-story-hour").value.trim();
+  if (val !== "" && (isNaN(val) || Number(val) < 0 || Number(val) > 23)) {
+    return toast("La hora debe ser un número entre 0 y 23");
+  }
+  S.settings.story_hour = val === "" ? null : Number(val);
+  await call("save_setting", { key: "story_hour", value: val });
+  saveLocal();
+  scheduleStoryGeneration();
+  const label = val === "" ? "desactivada" : `${String(val).padStart(2, "0")}:00`;
+  toast(`📖 Generación automática: ${label}`);
+}
+
 async function clearAll() {
   await call("clear_all");
   S.children = []; S.habits = []; S.completions = []; S.premios = []; S.history = [];
@@ -1824,9 +1854,264 @@ async function clearAll() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  AI ASSISTANT
+//  CUENTOS
 // ══════════════════════════════════════════════════════════
 const AI_API = "/api/ai";
+let _storiesByChild = {};
+let _storyTab = "cuento";
+let _favExpanded = null;
+let _quizAnswers = {};   // { storyId: [selectedIdx, ...] } — respuestas del usuario
+let _quizSubmitted = {}; // { storyId: true } — ya evaluado
+
+function _getStories() { return _storiesByChild[S.currentChild] || []; }
+function _setStories(arr) { _storiesByChild[S.currentChild] = arr; }
+let _storyScheduleTimer = null;
+
+async function generateAndSaveStory() {
+  const btn = document.getElementById("btn-gen-story");
+  if (btn) { btn.disabled = true; btn.textContent = "✨ Generando..."; }
+  try {
+    const res = await fetch(AI_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "generate_story", api_key: getAiKey() }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Error desconocido");
+    const { title, content, questions } = data.story;
+    const id = uid();
+    await call("save_story", { id, family_id: S.family_id, child_id: S.currentChild, title, content, questions: questions || [] });
+    const newStory = { id, title, content, questions: questions || [], quiz_claimed: false, child_id: S.currentChild, favorite: false, created_at: new Date().toISOString() };
+    _setStories([newStory, ..._getStories()]);
+    _quizAnswers[newStory.id] = [];
+    _quizSubmitted[newStory.id] = false;
+    _storyTab = "cuento";
+    renderCuentos();
+    toast("📖 ¡Nuevo cuento listo!");
+  } catch (e) {
+    toast("Error generando cuento: " + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "✨ Crear nuevo cuento"; }
+  }
+}
+
+async function loadStory() {
+  if (!S.family_id || !S.currentChild) return;
+  const res = await call("get_stories", { family_id: S.family_id, child_id: S.currentChild });
+  const stories = res?.data?.stories || res?.stories;
+  if (res?.ok && stories) {
+    _setStories(stories.map(s => ({ ...s, favorite: s.favorite === true || s.favorite === "true" })));
+  }
+}
+
+async function toggleFavorite(id) {
+  const story = _getStories().find(s => s.id === id);
+  if (!story) return;
+  story.favorite = !story.favorite;
+  if (!story.favorite && _favExpanded === id) _favExpanded = null;
+  await call("toggle_favorite", { id, favorite: story.favorite });
+  renderCuentos();
+}
+
+function getStoryHour() {
+  return S.settings.story_hour ?? null;
+}
+
+function scheduleStoryGeneration() {
+  if (_storyScheduleTimer) clearTimeout(_storyScheduleTimer);
+  const hour = getStoryHour();
+  if (hour === null || hour === "") return;
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(Number(hour), 0, 0, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  const delay = target - now;
+  _storyScheduleTimer = setTimeout(async () => {
+    await generateAndSaveStory();
+    scheduleStoryGeneration();
+  }, delay);
+}
+
+function buildQuizHTML(story) {
+  if (!story.questions?.length) return "";
+  const sid = story.id;
+  const submitted = !!_quizSubmitted[sid];
+  const answers = _quizAnswers[sid] || [];
+  const allAnswered = story.questions.every((_, i) => answers[i] !== undefined);
+  const allCorrect = submitted && story.questions.every((q, i) => answers[i] === q.answer);
+  const claimed = story.quiz_claimed;
+
+  const questionsHTML = story.questions.map((q, qi) => {
+    const userAns = answers[qi];
+    return `
+      <div class="quiz-question">
+        <p class="quiz-q-text">${qi + 1}. ${q.q}</p>
+        <div class="quiz-options">
+          ${q.options.map((opt, oi) => {
+            let cls = "quiz-opt";
+            if (submitted) {
+              if (oi === q.answer) cls += " correct";
+              else if (oi === userAns && oi !== q.answer) cls += " wrong";
+            } else if (oi === userAns) cls += " selected";
+            return `<button class="quiz-opt ${submitted ? (oi === q.answer ? "correct" : oi === userAns ? "wrong" : "") : oi === userAns ? "selected" : ""}"
+              data-story="${sid}" data-q="${qi}" data-opt="${oi}" ${submitted ? "disabled" : ""}>${opt}</button>`;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const claimBtn = submitted
+    ? allCorrect && !claimed
+      ? `<button class="btn-quiz-claim" id="btn-claim-quiz" data-story="${sid}">⭐ Reclamar 5 puntos</button>`
+      : claimed
+        ? `<p class="quiz-claimed-msg">✅ ¡Ya reclamaste tus 5 puntos!</p>`
+        : `<p class="quiz-fail-msg">❌ No todas las respuestas son correctas. ¡Intenta de nuevo mañana!</p>`
+    : `<button class="btn-quiz-submit" id="btn-submit-quiz" data-story="${sid}" ${allAnswered ? "" : "disabled"}>Verificar respuestas</button>`;
+
+  return `
+    <div class="quiz-section">
+      <h4 class="quiz-title">🧠 ¿Entendiste el cuento?</h4>
+      ${questionsHTML}
+      <div class="quiz-actions">${claimBtn}</div>
+    </div>
+  `;
+}
+
+async function claimQuizPoints(storyId) {
+  const btn = document.getElementById("btn-claim-quiz");
+  if (btn) btn.disabled = true;
+  const story = _getStories().find(s => s.id === storyId);
+  if (!story) return;
+  story.quiz_claimed = true;
+  await call("claim_quiz", { story_id: storyId });
+  await adjustPts(S.currentChild, 5);
+  saveLocal();
+  renderAll();
+  toast("⭐ ¡5 puntos reclamados!");
+}
+
+function renderCuentos() {
+  const cont = document.getElementById("cuentos-content");
+  if (!cont) return;
+
+  const hour = getStoryHour();
+  const hourLabel = hour !== null && hour !== ""
+    ? `${String(hour).padStart(2, "0")}:00`
+    : "No configurada";
+
+  const stories = _getStories();
+  const latest = stories[0] || null;
+  const favorites = stories.filter(s => s.favorite);
+
+  // ── Tab: Cuento del día ──
+  const cuentoHTML = latest ? `
+    <div class="story-card">
+      <div class="story-card-header">
+        <h3 class="story-title">${latest.title}</h3>
+        <button class="story-fav-btn ${latest.favorite ? "starred" : ""}" data-fav-id="${latest.id}">★</button>
+      </div>
+      <div class="story-body">${latest.content.replace(/\n/g, "<br>")}</div>
+      ${buildQuizHTML(latest)}
+    </div>
+    <div class="story-actions">
+      <button class="btn-primary" id="btn-gen-story">✨ Crear nuevo cuento</button>
+      <p class="story-schedule-hint">Generación automática: <strong>${hourLabel}</strong></p>
+    </div>
+  ` : `
+    <div class="story-empty">
+      <p class="story-empty-icon">📚</p>
+      <p class="story-empty-text">Aún no hay cuentos.<br>¡Crea el primero!</p>
+    </div>
+    <div class="story-actions">
+      <button class="btn-primary" id="btn-gen-story">✨ Crear nuevo cuento</button>
+      <p class="story-schedule-hint">Generación automática: <strong>${hourLabel}</strong></p>
+    </div>
+  `;
+
+  // ── Tab: Favoritos ──
+  const favoritesHTML = favorites.length ? favorites.map(s => {
+    const expanded = _favExpanded === s.id;
+    return `
+      <div class="fav-item ${expanded ? "expanded" : ""}" data-fav-story="${s.id}">
+        <div class="fav-item-header">
+          <span class="fav-item-title">${s.title}</span>
+          <div class="fav-item-actions">
+            <button class="story-list-star starred" data-fav-id="${s.id}">★</button>
+            <span class="fav-chevron">${expanded ? "▲" : "▼"}</span>
+          </div>
+        </div>
+        ${expanded ? `<div class="story-body fav-body">${s.content.replace(/\n/g, "<br>")}</div>` : ""}
+      </div>
+    `;
+  }).join("") : `
+    <div class="story-empty">
+      <p class="story-empty-icon">⭐</p>
+      <p class="story-empty-text">No hay favoritos aún.<br>Toca ★ en un cuento para guardarlo.</p>
+    </div>
+  `;
+
+  cont.innerHTML = `
+    <div class="view-intro">
+      <h2 class="view-h2">📖 Cuentos</h2>
+      <p class="view-desc">Fábulas infantiles para leer en familia</p>
+    </div>
+    <div class="story-tabs">
+      <button class="story-tab-btn ${_storyTab === "cuento" ? "active" : ""}" data-tab="cuento">📖 Cuento</button>
+      <button class="story-tab-btn ${_storyTab === "favorites" ? "active" : ""}" data-tab="favorites">⭐ Favoritos</button>
+    </div>
+    <div class="story-tab-content">
+      ${_storyTab === "cuento" ? cuentoHTML : favoritesHTML}
+    </div>
+  `;
+
+  document.getElementById("btn-gen-story")?.addEventListener("click", generateAndSaveStory);
+
+  cont.querySelectorAll(".story-tab-btn").forEach(b => b.addEventListener("click", () => {
+    _storyTab = b.dataset.tab;
+    renderCuentos();
+  }));
+
+  cont.querySelectorAll(".fav-item").forEach(el => el.addEventListener("click", (e) => {
+    if (e.target.closest("[data-fav-id]")) return;
+    const id = el.dataset.favStory;
+    _favExpanded = _favExpanded === id ? null : id;
+    renderCuentos();
+  }));
+
+  cont.querySelectorAll("[data-fav-id]").forEach(b => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleFavorite(b.dataset.favId);
+  }));
+
+  // Quiz: seleccionar opción
+  cont.querySelectorAll(".quiz-opt").forEach(b => b.addEventListener("click", () => {
+    const sid = b.dataset.story;
+    const qi = Number(b.dataset.q);
+    const oi = Number(b.dataset.opt);
+    if (_quizSubmitted[sid]) return;
+    if (!_quizAnswers[sid]) _quizAnswers[sid] = [];
+    _quizAnswers[sid][qi] = oi;
+    renderCuentos();
+  }));
+
+  // Quiz: verificar
+  document.getElementById("btn-submit-quiz")?.addEventListener("click", () => {
+    const sid = document.getElementById("btn-submit-quiz").dataset.story;
+    _quizSubmitted[sid] = true;
+    renderCuentos();
+  });
+
+  // Quiz: reclamar puntos
+  document.getElementById("btn-claim-quiz")?.addEventListener("click", () => {
+    const sid = document.getElementById("btn-claim-quiz").dataset.story;
+    claimQuizPoints(sid);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  AI ASSISTANT
+// ══════════════════════════════════════════════════════════
 let _chatHistory = [];
 let _chatOpen = false;
 
@@ -2304,10 +2589,12 @@ async function init() {
           await checkAutoWeek();
           // If app opens on Sunday after noon and reset hasn't fired yet, do it now
           await checkSundayNoonReset();
+          await loadStory();
           renderAll();
           // Schedule automatic Sunday reset and start countdown timer
           scheduleWeeklyReset();
           startCountdownTimer();
+          scheduleStoryGeneration();
         });
       }
     }, 400);

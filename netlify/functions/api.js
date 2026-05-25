@@ -100,6 +100,19 @@ async function initDb(sql) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS stories (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      favorite BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`;
+  await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS favorite BOOLEAN DEFAULT FALSE`;
+  await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS child_id TEXT DEFAULT NULL`;
+  await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS questions JSONB DEFAULT NULL`;
+  await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS quiz_claimed BOOLEAN DEFAULT FALSE`;
 }
 
 // ── HANDLER ────────────────────────────────────────────────────────────────
@@ -351,6 +364,40 @@ export const handler = async (event) => {
         }
         await sql`DELETE FROM settings WHERE key LIKE ${family_id + ":%"}`;
         return ok({ cleared: true });
+      }
+
+      // ── STORIES ──────────────────────────────────────────────
+      case "save_story": {
+        const { id, family_id, child_id, title, content, questions } = payload;
+        if (!id || !family_id || !title || !content) return err("id, family_id, title y content requeridos");
+        const qJson = questions ? JSON.stringify(questions) : null;
+        await sql`INSERT INTO stories (id, family_id, child_id, title, content, questions, favorite, quiz_claimed)
+                  VALUES (${id}, ${family_id}, ${child_id || null}, ${title}, ${content}, ${qJson}::jsonb, FALSE, FALSE)
+                  ON CONFLICT (id) DO NOTHING`;
+        return ok({ id });
+      }
+
+      case "claim_quiz": {
+        const { story_id } = payload;
+        if (!story_id) return err("story_id requerido");
+        await sql`UPDATE stories SET quiz_claimed = TRUE WHERE id = ${story_id}`;
+        return ok({ claimed: true });
+      }
+
+      case "get_stories": {
+        const { family_id, child_id } = payload;
+        if (!family_id) return err("family_id requerido");
+        const rows = child_id
+          ? await sql`SELECT * FROM stories WHERE family_id = ${family_id} AND child_id = ${child_id} ORDER BY created_at DESC`
+          : await sql`SELECT * FROM stories WHERE family_id = ${family_id} ORDER BY created_at DESC`;
+        return ok({ stories: rows });
+      }
+
+      case "toggle_favorite": {
+        const { id, favorite } = payload;
+        if (!id) return err("id requerido");
+        await sql`UPDATE stories SET favorite = ${favorite} WHERE id = ${id}`;
+        return ok({ id, favorite });
       }
 
       default:
