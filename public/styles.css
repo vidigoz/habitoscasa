@@ -336,7 +336,7 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .btn-upload-img:hover { background: var(--p); color: #fff; }
 .icon-picker-divider { display: flex; align-items: center; gap: 8px; margin: 10px 0 6px; color: var(--t3); font-size: 11px; font-weight: 600; }
 .icon-picker-divider::before, .icon-picker-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
-.hc-icon-img { width: 48px; height: 48px; object-fit: cover; border-radius: 10px; display: block; }
+.hc-icon-img { width: 58px; height: 58px; object-fit: cover; border-radius: 10px; display: block; }
 
 /* ─── FIELDS ─────────────────────────────────────────── */
 .field { width: 100%; padding: 12px 14px; border-radius: var(--r-sm); border: 1.5px solid var(--border); background: var(--bg); font-size: 14px; font-family: var(--ff-b); font-weight: 600; color: var(--t1); margin-bottom: 10px; transition: border-color .15s, box-shadow .15s; }
@@ -371,7 +371,7 @@ body { font-family: var(--ff-b); background: var(--bg); color: var(--t1); font-s
 .habit-card { background: var(--surf); border-radius: var(--r); padding: 15px 16px; box-shadow: var(--sh); border: 1.5px solid var(--border); animation: cardPop .22s ease-out; }
 .habit-card.has-icon { padding: 12px 16px 15px; }
 .hc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.hc-icon { font-size: 48px; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,.12)); }
+.hc-icon { font-size: 58px; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,.12)); }
 .hc-text { flex: 1; min-width: 0; }
 .hc-name { font-weight: 800; font-size: 16px; }
 .hc-meta { font-size: 11px; color: var(--t3); margin-top: 3px; }
