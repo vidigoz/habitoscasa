@@ -688,12 +688,10 @@ function renderProfileRow() {
   row.innerHTML = S.children.map((c, i) => {
     const color = getChildColor(i);
     const avatar = getChildAvatar(c, i);
-    const pts = getValidPts(c.id);
     const isActive = c.id === S.currentChild;
     return `<button class="profile-chip${isActive ? " active" : ""}" data-cid="${c.id}" style="--chip-color:${color}">
       <span class="profile-avatar">${avatar}</span>
       <span class="profile-name">${c.name}</span>
-      <span class="profile-pts">⭐ ${pts}</span>
     </button>`;
   }).join("");
 
@@ -2566,7 +2564,6 @@ async function init() {
       `<button class="modal-child-btn ${c.id === S.currentChild ? "sel" : ""}" data-cid="${c.id}">
         <span class="mc-avatar">${getChildAvatar(c, i)}</span>
         <span>${c.name}</span>
-        <span style="margin-left:auto;font-size:12px;color:var(--t3);">⭐ ${getValidPts(c.id)}</span>
       </button>`
     ).join("") || `<p style="text-align:center;color:var(--t3);padding:10px;font-weight:600;">Sin perfiles — crea uno en Config</p>`;
     list.querySelectorAll("[data-cid]").forEach(b => {
