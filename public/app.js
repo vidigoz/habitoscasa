@@ -213,7 +213,7 @@ async function loadFromDB() {
   S.currentWeek = todayWeek;
   S.currentWeekLabel = getWeekLabel();
   if (d.settings) {
-    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a", "story_hour"].forEach(k => {
+    ["label_basicos", "label_extras", "label_especiales", "ai_key", "ai_provider", "secret_q", "secret_a"].forEach(k => {
       if (d.settings[k] !== undefined) S.settings[k] = d.settings[k];
     });
     // Sync PIN and secret question from DB to localStorage so all devices work
@@ -1172,17 +1172,6 @@ function renderConfig() {
     <!-- AI Assistant -->
     ${buildAiConfigCard()}
 
-    <!-- Cuentos -->
-    <div class="card">
-      <h3 class="card-title">📖 Cuentos</h3>
-      <p class="card-desc">Hora del día para generar el cuento automáticamente.</p>
-      <div class="field-row">
-        <input id="inp-story-hour" class="field" type="number" min="0" max="23" placeholder="Ej: 19 (para 7pm)" value="${S.settings.story_hour ?? ""}">
-        <button class="btn-primary btn-sm" id="btn-save-story-hour">Guardar</button>
-      </div>
-      <p class="card-sub">Deja vacío para desactivar la generación automática.</p>
-    </div>
-
     <!-- Danger -->
     <div class="card card-danger">
       <h3 class="card-title danger-title">⚠️ Zona de peligro</h3>
@@ -1319,9 +1308,6 @@ function attachConfigListeners() {
 
   // Labels
   document.getElementById("btn-save-labels")?.addEventListener("click", saveLabels);
-
-  // Story hour
-  document.getElementById("btn-save-story-hour")?.addEventListener("click", saveStoryHour);
 
   // Danger zone
   document.getElementById("btn-clear-all")?.addEventListener("click", () =>
@@ -1849,18 +1835,6 @@ async function saveLabels() {
   toast("✅ Nombres guardados");
 }
 
-async function saveStoryHour() {
-  const val = document.getElementById("inp-story-hour").value.trim();
-  if (val !== "" && (isNaN(val) || Number(val) < 0 || Number(val) > 23)) {
-    return toast("La hora debe ser un número entre 0 y 23");
-  }
-  S.settings.story_hour = val === "" ? null : Number(val);
-  await call("save_setting", { key: "story_hour", value: val });
-  saveLocal();
-  scheduleStoryGeneration();
-  const label = val === "" ? "desactivada" : `${String(val).padStart(2, "0")}:00`;
-  toast(`📖 Generación automática: ${label}`);
-}
 
 async function clearAll() {
   await call("clear_all");
@@ -1883,7 +1857,6 @@ let _quizSubmitted = {}; // { storyId: true } — ya evaluado
 
 function _getStories() { return _storiesByChild[S.currentChild] || []; }
 function _setStories(arr) { _storiesByChild[S.currentChild] = arr; }
-let _storyScheduleTimer = null;
 
 async function generateAndSaveStory() {
   const btn = document.getElementById("btn-gen-story");
@@ -1903,13 +1876,13 @@ async function generateAndSaveStory() {
     _setStories([newStory, ..._getStories()]);
     _quizAnswers[newStory.id] = [];
     _quizSubmitted[newStory.id] = false;
+    markStoryGeneratedToday();
     _storyTab = "cuento";
     renderCuentos();
     toast("📖 ¡Nuevo cuento listo!");
   } catch (e) {
-    toast("Error generando cuento: " + e.message);
-  } finally {
     if (btn) { btn.disabled = false; btn.textContent = "✨ Crear nuevo cuento"; }
+    toast("Error generando cuento: " + e.message);
   }
 }
 
@@ -1931,23 +1904,48 @@ async function toggleFavorite(id) {
   renderCuentos();
 }
 
-function getStoryHour() {
-  return S.settings.story_hour ?? null;
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function scheduleStoryGeneration() {
-  if (_storyScheduleTimer) clearTimeout(_storyScheduleTimer);
-  const hour = getStoryHour();
-  if (hour === null || hour === "") return;
+function storyGeneratedToday() {
+  const key = `mh_story_date_${S.currentChild}`;
+  return localStorage.getItem(key) === todayStr();
+}
+
+function markStoryGeneratedToday() {
+  const key = `mh_story_date_${S.currentChild}`;
+  localStorage.setItem(key, todayStr());
+}
+
+let _storyCountdownTimer = null;
+
+function msUntilMidnight() {
   const now = new Date();
-  const target = new Date(now);
-  target.setHours(Number(hour), 0, 0, 0);
-  if (target <= now) target.setDate(target.getDate() + 1);
-  const delay = target - now;
-  _storyScheduleTimer = setTimeout(async () => {
-    await generateAndSaveStory();
-    scheduleStoryGeneration();
-  }, delay);
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return midnight - now;
+}
+
+function startStoryCountdown() {
+  if (_storyCountdownTimer) clearInterval(_storyCountdownTimer);
+  function update() {
+    const ms = msUntilMidnight();
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const label = `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+    const btn = document.getElementById("btn-gen-story");
+    if (!btn) { clearInterval(_storyCountdownTimer); return; }
+    btn.textContent = `⏳ Nueva historia en ${label}`;
+    if (ms <= 1000) {
+      clearInterval(_storyCountdownTimer);
+      btn.disabled = false;
+      btn.textContent = "✨ Crear nuevo cuento";
+    }
+  }
+  update();
+  _storyCountdownTimer = setInterval(update, 1000);
 }
 
 function buildQuizHTML(story) {
@@ -2013,16 +2011,13 @@ function renderCuentos() {
   const cont = document.getElementById("cuentos-content");
   if (!cont) return;
 
-  const hour = getStoryHour();
-  const hourLabel = hour !== null && hour !== ""
-    ? `${String(hour).padStart(2, "0")}:00`
-    : "No configurada";
-
+  const already = storyGeneratedToday();
   const stories = _getStories();
   const latest = stories[0] || null;
   const favorites = stories.filter(s => s.favorite);
 
   // ── Tab: Cuento del día ──
+  const btnHTML = `<button class="btn-primary" id="btn-gen-story" ${already ? "disabled" : ""}>✨ Crear nuevo cuento</button>`;
   const cuentoHTML = latest ? `
     <div class="story-card">
       <div class="story-card-header">
@@ -2032,19 +2027,13 @@ function renderCuentos() {
       <div class="story-body">${latest.content.replace(/\n/g, "<br>")}</div>
       ${buildQuizHTML(latest)}
     </div>
-    <div class="story-actions">
-      <button class="btn-primary" id="btn-gen-story">✨ Crear nuevo cuento</button>
-      <p class="story-schedule-hint">Generación automática: <strong>${hourLabel}</strong></p>
-    </div>
+    <div class="story-actions">${btnHTML}</div>
   ` : `
     <div class="story-empty">
       <p class="story-empty-icon">📚</p>
-      <p class="story-empty-text">Aún no hay cuentos.<br>¡Crea el primero!</p>
+      <p class="story-empty-text">Aún no hay cuentos.<br>¡Genera el primero!</p>
     </div>
-    <div class="story-actions">
-      <button class="btn-primary" id="btn-gen-story">✨ Crear nuevo cuento</button>
-      <p class="story-schedule-hint">Generación automática: <strong>${hourLabel}</strong></p>
-    </div>
+    <div class="story-actions">${btnHTML}</div>
   `;
 
   // ── Tab: Favoritos ──
@@ -2083,7 +2072,11 @@ function renderCuentos() {
     </div>
   `;
 
-  document.getElementById("btn-gen-story")?.addEventListener("click", generateAndSaveStory);
+  const genBtn = document.getElementById("btn-gen-story");
+  if (genBtn) {
+    genBtn.addEventListener("click", generateAndSaveStory);
+    if (already) startStoryCountdown();
+  }
 
   cont.querySelectorAll(".story-tab-btn").forEach(b => b.addEventListener("click", () => {
     _storyTab = b.dataset.tab;
@@ -2690,10 +2683,8 @@ async function init() {
           await checkSundayNoonReset();
           await loadStory();
           renderAll();
-          // Schedule automatic Sunday reset and start countdown timer
           scheduleWeeklyReset();
           startCountdownTimer();
-          scheduleStoryGeneration();
         });
       }
     }, 400);
