@@ -1725,10 +1725,20 @@ async function archiveWeek(oldWeek, oldLabel, newLabel, newWeekStart) {
 async function checkAutoWeek() {
   const todayWeek = getWeekStart();
   if (!S.currentWeek || S.currentWeek === todayWeek) return;
-  // If DB already has completions for the current week, just update the week
-  // pointer without archiving — avoids wiping progress after an app update
+  // If DB already has completions for the current week the rollover already
+  // happened (e.g. doSundayNoonReset fired), but this session's S.currentWeek
+  // still points to the old week — so points may not have been reset yet.
   const hasCurrentWeekData = S.completions.some(c => c.week_start === todayWeek);
   if (hasCurrentWeekData) {
+    // Archive history entry if missing, then zero out points for each child
+    for (const child of S.children) {
+      if (S.history.some(h => h.child_id === child.id && h.week_start === S.currentWeek)) continue;
+      const oldEntry = { id: uid(), child_id: child.id, week_start: S.currentWeek, week_label: S.currentWeekLabel, points: getTotalPts(child.id) };
+      await call("add_history", oldEntry);
+      S.history.push(oldEntry);
+      child.total_points = 0;
+      await call("update_points", { child_id: child.id, total_points: 0 });
+    }
     S.currentWeek = todayWeek;
     S.currentWeekLabel = getWeekLabel();
     saveLocal();
