@@ -1,4 +1,4 @@
-const CACHE = 'mishab-v2';
+const CACHE = 'mishab-v3';
 const STATIC = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',

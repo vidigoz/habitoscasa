@@ -1722,6 +1722,19 @@ async function archiveWeek(oldWeek, oldLabel, newLabel, newWeekStart) {
   S.currentWeekLabel = newLabel || getWeekLabel();
 }
 
+// Sanity-check: if a child has total_points > 0 but zero completions this week,
+// those points are stale from a previous week that didn't reset properly — clear them.
+async function fixOrphanedPoints() {
+  for (const child of S.children) {
+    if (!child.total_points) continue;
+    const hasCompletions = S.completions.some(c => c.child_id === child.id && c.week_start === S.currentWeek);
+    if (!hasCompletions) {
+      child.total_points = 0;
+      await call("update_points", { child_id: child.id, total_points: 0 });
+    }
+  }
+}
+
 async function checkAutoWeek() {
   const todayWeek = getWeekStart();
   if (!S.currentWeek || S.currentWeek === todayWeek) return;
@@ -2688,6 +2701,7 @@ async function init() {
           await checkAutoWeek();
           // If app opens on Sunday after noon and reset hasn't fired yet, do it now
           await checkSundayNoonReset();
+          await fixOrphanedPoints();
           await loadStory();
           renderAll();
           scheduleWeeklyReset();
