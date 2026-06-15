@@ -1722,15 +1722,35 @@ async function archiveWeek(oldWeek, oldLabel, newLabel, newWeekStart) {
   S.currentWeekLabel = newLabel || getWeekLabel();
 }
 
-// Sanity-check: if a child has total_points > 0 but zero completions this week,
-// those points are stale from a previous week that didn't reset properly — clear them.
+// Returns pts earned from quiz claims in the current week for a given child.
+function getStoryPtsThisWeek(child_id) {
+  const weekEnd = new Date(S.currentWeek + "T00:00:00");
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  return (_storiesByChild[child_id] || [])
+    .filter(s => {
+      if (!s.quiz_claimed) return false;
+      const d = new Date(s.created_at);
+      const ds = toLocalDateStr(d);
+      return ds >= S.currentWeek && ds < toLocalDateStr(weekEnd);
+    })
+    .length * 5;
+}
+
+// Sanity-check: if a child has total_points that exceed what habits + story quizzes
+// earned this week, the excess is stale from a previous week — reset to the correct amount.
 async function fixOrphanedPoints() {
   for (const child of S.children) {
     if (!child.total_points) continue;
     const hasCompletions = S.completions.some(c => c.child_id === child.id && c.week_start === S.currentWeek);
-    if (!hasCompletions) {
+    const storyPts = getStoryPtsThisWeek(child.id);
+    // If no habit completions and no story pts this week, all points are orphaned
+    if (!hasCompletions && storyPts === 0) {
       child.total_points = 0;
       await call("update_points", { child_id: child.id, total_points: 0 });
+    } else if (!hasCompletions && child.total_points > storyPts) {
+      // Only story pts are legitimate — reset to those
+      child.total_points = storyPts;
+      await call("update_points", { child_id: child.id, total_points: storyPts });
     }
   }
 }
@@ -2079,10 +2099,29 @@ function renderCuentos() {
     </div>
   `;
 
+  const storyPts = getStoryPtsThisWeek(S.currentChild);
+  const habitPts = getTotalPts(S.currentChild) - storyPts;
+
   cont.innerHTML = `
     <div class="view-intro">
       <h2 class="view-h2">📖 Cuentos</h2>
       <p class="view-desc">Fábulas infantiles para leer en familia</p>
+    </div>
+    <div class="story-pts-summary">
+      <div class="story-pts-item">
+        <span class="story-pts-label">📅 Hábitos</span>
+        <span class="story-pts-value">${Math.max(0, habitPts)} pts</span>
+      </div>
+      <div class="story-pts-divider">+</div>
+      <div class="story-pts-item">
+        <span class="story-pts-label">📖 Cuentos</span>
+        <span class="story-pts-value">${storyPts} pts</span>
+      </div>
+      <div class="story-pts-divider">=</div>
+      <div class="story-pts-item story-pts-total">
+        <span class="story-pts-label">Total</span>
+        <span class="story-pts-value">⭐ ${getTotalPts(S.currentChild)} pts</span>
+      </div>
     </div>
     <div class="story-tabs">
       <button class="story-tab-btn ${_storyTab === "cuento" ? "active" : ""}" data-tab="cuento">📖 Cuento</button>
