@@ -1906,7 +1906,11 @@ async function generateAndSaveStory() {
     const res = await fetch(AI_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "generate_story", api_key: getAiKey() }),
+      body: JSON.stringify({
+        action: "generate_story",
+        api_key: getAiKey(),
+        recent_titles: _getStories().slice(0, 4).map(s => s.title),
+      }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Error desconocido");
