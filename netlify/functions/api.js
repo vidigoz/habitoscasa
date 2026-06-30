@@ -113,6 +113,16 @@ async function initDb(sql) {
   await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS child_id TEXT DEFAULT NULL`;
   await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS questions JSONB DEFAULT NULL`;
   await sql`ALTER TABLE stories ADD COLUMN IF NOT EXISTS quiz_claimed BOOLEAN DEFAULT FALSE`;
+
+  // Push notification subscriptions
+  await sql`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      family_id TEXT NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      keys JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )`;
 }
 
 // ── HANDLER ────────────────────────────────────────────────────────────────
@@ -399,6 +409,31 @@ export const handler = async (event) => {
         if (!id) return err("id requerido");
         await sql`UPDATE stories SET favorite = ${favorite} WHERE id = ${id}`;
         return ok({ id, favorite });
+      }
+
+      // ── PUSH SUBSCRIPTIONS ───────────────────────────────
+      case "push_subscribe": {
+        const { id, family_id, endpoint, keys } = payload;
+        if (!id || !family_id || !endpoint || !keys) return err("id, family_id, endpoint y keys requeridos");
+        const keysJson = JSON.stringify(keys);
+        await sql`INSERT INTO push_subscriptions (id, family_id, endpoint, keys)
+                  VALUES (${id}, ${family_id}, ${endpoint}, ${keysJson}::jsonb)
+                  ON CONFLICT (endpoint) DO UPDATE SET family_id = ${family_id}, keys = ${keysJson}::jsonb`;
+        return ok({ subscribed: true });
+      }
+
+      case "push_unsubscribe": {
+        const { endpoint, family_id } = payload;
+        if (!endpoint) return err("endpoint requerido");
+        await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint} AND family_id = ${family_id}`;
+        return ok({ unsubscribed: true });
+      }
+
+      case "get_push_subscriptions": {
+        const { family_id } = payload;
+        if (!family_id) return err("family_id requerido");
+        const subs = await sql`SELECT id, endpoint, keys FROM push_subscriptions WHERE family_id = ${family_id}`;
+        return ok({ subscriptions: subs });
       }
 
       default:

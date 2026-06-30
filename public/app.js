@@ -1170,6 +1170,54 @@ function renderConfig() {
     <!-- AI Assistant -->
     ${buildAiConfigCard()}
 
+    <!-- Notificaciones -->
+    <div class="card" id="card-notif">
+      <h3 class="card-title">🔔 Notificaciones</h3>
+      <p class="card-desc" style="margin-bottom:14px;">Recibe avisos en tu celular cuando hay novedades. Debes tener la app instalada como PWA.</p>
+      <div id="notif-status-row" style="margin-bottom:16px;"></div>
+      <div id="notif-prefs" class="hidden">
+        <div class="notif-toggle-row">
+          <div class="notif-toggle-info">
+            <span class="notif-toggle-label">📖 Nuevo cuento disponible</span>
+            <span class="notif-toggle-desc">Aviso a medianoche cuando se puede leer un nuevo cuento</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notif-cuento" ${getNotifSettings().nuevo_cuento ? "checked" : ""}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="notif-toggle-row">
+          <div class="notif-toggle-info">
+            <span class="notif-toggle-label">⏰ Recordatorio de hábitos</span>
+            <span class="notif-toggle-desc">Recordatorio si hay hábitos sin completar</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notif-record" ${getNotifSettings().recordatorio ? "checked" : ""}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="notif-hour-row" id="notif-hour-row" style="${getNotifSettings().recordatorio ? "" : "display:none"}">
+          <label class="field-label" style="margin-bottom:4px;">Hora del recordatorio</label>
+          <select id="notif-hour-sel" class="field" style="width:auto;min-width:140px;">
+            ${[15,16,17,18,19,20,21].map(h =>
+              `<option value="${h}" ${getNotifSettings().recordatorio_hora === h ? "selected" : ""}>${h}:00 hrs</option>`
+            ).join("")}
+          </select>
+        </div>
+        <div class="notif-toggle-row">
+          <div class="notif-toggle-info">
+            <span class="notif-toggle-label">🎁 Premios disponibles</span>
+            <span class="notif-toggle-desc">Aviso cuando un niño tiene suficientes puntos para canjear un premio</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notif-premios" ${getNotifSettings().premios ? "checked" : ""}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <button class="btn-primary btn-sm" id="btn-save-notif-prefs" style="margin-top:14px;">Guardar preferencias</button>
+      </div>
+    </div>
+
     <!-- Danger -->
     <div class="card card-danger">
       <h3 class="card-title danger-title">⚠️ Zona de peligro</h3>
@@ -1186,6 +1234,7 @@ function renderConfig() {
 
   attachConfigListeners();
   attachAiConfigListeners();
+  attachNotifListeners();
   checkDbStatus();
 }
 
@@ -2513,6 +2562,75 @@ function attachAiConfigListeners() {
   });
 }
 
+// ── NOTIFICACIONES ────────────────────────────────────────
+function attachNotifListeners() {
+  const statusRow = document.getElementById("notif-status-row");
+  const prefsDiv  = document.getElementById("notif-prefs");
+  if (!statusRow) return;
+
+  const supported = "serviceWorker" in navigator && "PushManager" in window;
+
+  if (!supported) {
+    statusRow.innerHTML = `<p style="color:var(--t3);font-size:13px;">Tu navegador no soporta notificaciones push. Instala la app como PWA en un dispositivo móvil.</p>`;
+    return;
+  }
+
+  // Show current subscription status and toggle button
+  async function renderNotifStatus() {
+    const subscribed = await isPushSubscribed();
+    const cfg = getNotifSettings();
+    if (subscribed) {
+      statusRow.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="background:var(--g);color:#fff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;">🔔 Activas</span>
+          <span style="font-size:13px;color:var(--t2);">Notificaciones habilitadas en este dispositivo</span>
+          <button class="btn-ghost btn-sm" id="btn-notif-toggle" style="margin-left:auto;">Desactivar</button>
+        </div>`;
+      prefsDiv.classList.remove("hidden");
+    } else {
+      statusRow.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="background:var(--border);color:var(--t2);font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;">🔕 Inactivas</span>
+          <span style="font-size:13px;color:var(--t2);">No recibes notificaciones en este dispositivo</span>
+          <button class="btn-primary btn-sm" id="btn-notif-toggle" style="margin-left:auto;">Activar</button>
+        </div>`;
+      prefsDiv.classList.add("hidden");
+    }
+
+    document.getElementById("btn-notif-toggle")?.addEventListener("click", async () => {
+      const isSub = await isPushSubscribed();
+      if (isSub) {
+        await unsubscribePush();
+      } else {
+        await subscribePush();
+      }
+      await renderNotifStatus();
+    });
+  }
+
+  renderNotifStatus();
+
+  // Toggle recordatorio hour selector visibility
+  document.getElementById("notif-record")?.addEventListener("change", e => {
+    const row = document.getElementById("notif-hour-row");
+    if (row) row.style.display = e.target.checked ? "" : "none";
+  });
+
+  // Save preferences
+  document.getElementById("btn-save-notif-prefs")?.addEventListener("click", async () => {
+    const cfg = {
+      enabled: true,
+      nuevo_cuento: document.getElementById("notif-cuento")?.checked ?? true,
+      recordatorio: document.getElementById("notif-record")?.checked ?? true,
+      premios: document.getElementById("notif-premios")?.checked ?? true,
+      recordatorio_hora: parseInt(document.getElementById("notif-hour-sel")?.value ?? "19"),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Mexico_City",
+    };
+    await saveNotifSettings(cfg);
+    toast("✅ Preferencias de notificaciones guardadas");
+  });
+}
+
 // ── THEMES ────────────────────────────────────────────────
 function applyTheme(theme) {
   if (theme) document.documentElement.setAttribute("data-theme", theme);
@@ -2753,6 +2871,128 @@ async function init() {
       }
     }, 400);
   }, 1000);
+}
+
+// ═══════════════════════════════════════════════════════
+//  PUSH NOTIFICATIONS
+// ═══════════════════════════════════════════════════════
+
+const PUSH_API = "/api/push";
+
+// Fetch VAPID public key from server
+async function getVapidPublicKey() {
+  try {
+    const res = await fetch(PUSH_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "vapid_public_key", payload: {} }),
+    });
+    const json = await res.json();
+    return json.ok ? json.data.key : null;
+  } catch { return null; }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+// Request permission and subscribe this device
+async function subscribePush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    toast("❌ Tu navegador no soporta notificaciones push");
+    return false;
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    toast("❌ Permiso de notificaciones denegado");
+    return false;
+  }
+
+  const vapidKey = await getVapidPublicKey();
+  if (!vapidKey) {
+    toast("❌ Error de configuración del servidor");
+    return false;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    });
+    const subJson = sub.toJSON();
+    const r = await call("push_subscribe", {
+      id: uid(),
+      endpoint: subJson.endpoint,
+      keys: subJson.keys,
+    });
+    if (!r.ok) throw new Error(r.error);
+    localStorage.setItem("mh_push_sub_endpoint", subJson.endpoint);
+    toast("🔔 Notificaciones activadas");
+    return true;
+  } catch (e) {
+    console.error("Push subscribe failed:", e);
+    toast("❌ Error al activar notificaciones");
+    return false;
+  }
+}
+
+// Unsubscribe this device
+async function unsubscribePush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await call("push_unsubscribe", { endpoint });
+      localStorage.removeItem("mh_push_sub_endpoint");
+    }
+    toast("🔕 Notificaciones desactivadas");
+    return true;
+  } catch (e) {
+    console.error("Push unsubscribe failed:", e);
+    toast("❌ Error al desactivar notificaciones");
+    return false;
+  }
+}
+
+async function isPushSubscribed() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    return !!sub;
+  } catch { return false; }
+}
+
+// Save notification preferences to DB
+async function saveNotifSettings(cfg) {
+  S.settings.notif_settings = cfg;
+  saveLocal();
+  await call("save_setting", { key: "notif_settings", value: cfg });
+}
+
+// Load notification preferences from state
+function getNotifSettings() {
+  const defaults = {
+    enabled: true,
+    nuevo_cuento: true,
+    recordatorio: true,
+    premios: true,
+    recordatorio_hora: 19,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Mexico_City",
+  };
+  const stored = S.settings.notif_settings;
+  if (!stored) return defaults;
+  if (typeof stored === "string") {
+    try { return { ...defaults, ...JSON.parse(stored) }; } catch { return defaults; }
+  }
+  return { ...defaults, ...stored };
 }
 
 document.addEventListener("DOMContentLoaded", init);

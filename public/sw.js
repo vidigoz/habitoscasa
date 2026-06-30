@@ -43,3 +43,34 @@ self.addEventListener('fetch', e => {
     }).catch(() => caches.match(e.request))
   );
 });
+
+// ── PUSH NOTIFICATIONS ────────────────────────────────────
+self.addEventListener('push', e => {
+  if (!e.data) return;
+  let data;
+  try { data = e.data.json(); } catch { data = { title: 'Hábitos Kids', body: e.data.text() }; }
+
+  const options = {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: data.tag || 'habitoskids',
+    data: { url: data.url || '/' },
+    requireInteraction: false,
+    vibrate: [200, 100, 200],
+  };
+
+  e.waitUntil(self.registration.showNotification(data.title || 'Hábitos Kids', options));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const existing = list.find(c => c.url.startsWith(self.location.origin));
+      if (existing) return existing.focus();
+      return clients.openWindow(target);
+    })
+  );
+});
